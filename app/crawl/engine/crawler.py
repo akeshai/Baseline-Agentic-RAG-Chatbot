@@ -54,7 +54,7 @@ class CrawlerEngine:
         retry_jitter: float = 0.5,
     ) -> None:
         self.task_id = task_id
-        self.start_urls = start_urls
+        self.start_urls = [LinkExtractor.normalize_url(url) for url in start_urls]
         self.max_depth = max_depth
         self.max_pages = max_pages
         self.concurrency_strategy = concurrency_strategy
@@ -65,7 +65,11 @@ class CrawlerEngine:
         self.rate_limiter = rate_limiter
         self.storage_manager = storage_manager
         self.allowed_domains = allowed_domains
-        self.allowed_urls = allowed_urls
+        self.allowed_urls = (
+            [LinkExtractor.normalize_url(url) for url in allowed_urls]
+            if allowed_urls
+            else None
+        )
         self.max_retries = max_retries
         self.retry_backoff_base = retry_backoff_base
         self.retry_backoff_cap = retry_backoff_cap
@@ -239,9 +243,16 @@ class CrawlerEngine:
                     self.scraped_count += 1
 
                 # Update count in DB task record
-                await CrawlRepository.increment_pages_counter(
-                    self.storage_manager.db, self.task_id, status="success"
-                )
+                if self.storage_manager.db:
+                    await CrawlRepository.increment_pages_counter(
+                        self.storage_manager.db, self.task_id, status="success"
+                    )
+                else:
+                    from app.database import SessionLocal
+                    async with SessionLocal() as db_session:
+                        await CrawlRepository.increment_pages_counter(
+                            db_session, self.task_id, status="success"
+                        )
 
                 # Link Discovery: extract outbound links if within max depth limits
                 if not is_pdf and item.depth < self.max_depth:
@@ -307,6 +318,13 @@ class CrawlerEngine:
                     logger.error(
                         "Max retries reached for URL: %s. Dropping request.", url
                     )
-                    await CrawlRepository.increment_pages_counter(
-                        self.storage_manager.db, self.task_id, status="failed"
-                    )
+                    if self.storage_manager.db:
+                        await CrawlRepository.increment_pages_counter(
+                            self.storage_manager.db, self.task_id, status="failed"
+                        )
+                    else:
+                        from app.database import SessionLocal
+                        async with SessionLocal() as db_session:
+                            await CrawlRepository.increment_pages_counter(
+                                db_session, self.task_id, status="failed"
+                            )

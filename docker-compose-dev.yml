@@ -71,8 +71,8 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - ./app:/workspace/app
-      - ./main.py:/workspace/main.py
+      # - ./app:/workspace/app
+      # - ./main.py:/workspace/main.py
       - ./storage_buckets:/workspace/storage_buckets
 
 volumes:

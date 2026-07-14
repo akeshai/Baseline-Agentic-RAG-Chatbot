@@ -7,11 +7,12 @@ This repository provides a secure, async-first ChatBot API containing:
 
 ---
 
-## API Documentation
+## Documentation
 
-For a detailed list of endpoints, request schemas, response formats, and authorization requirements of all services:
+For detailed guides on routes, APIs, and custom scraping selectors:
 - **[Authentication Service Routes](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/routes/auth.md)**
 - **[Crawling Service Routes](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/routes/crawl.md)**
+- **[Selector Configurations Guide](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/selectors_guide.md)**
 
 ---
 

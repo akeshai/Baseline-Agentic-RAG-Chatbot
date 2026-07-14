@@ -30,6 +30,14 @@ class CrawlRequest(BaseModel):
         le=10,
         description="Max concurrent page workers (applicable only in concurrent mode)",
     )
+    allowed_domains: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of allowed domains. If not provided, defaults to seed URL domains.",
+    )
+    allowed_urls: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of allowed URL prefixes. If provided, only links starting with these prefixes will be crawled.",
+    )
 
 
 class CrawlTaskResponse(BaseModel):

@@ -127,4 +127,9 @@ class CrawlStorageManager:
         )
 
         # 3. Persist record to DB via repository
-        return await CrawlRepository.create_crawled_page(self.db, page)
+        if self.db:
+            return await CrawlRepository.create_crawled_page(self.db, page)
+        else:
+            from app.database import SessionLocal
+            async with SessionLocal() as db_session:
+                return await CrawlRepository.create_crawled_page(db_session, page)

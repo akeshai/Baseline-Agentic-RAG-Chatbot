@@ -14,6 +14,56 @@ class LinkExtractor:
     """
 
     @staticmethod
+    def normalize_url(url: str) -> str:
+        """
+        Normalizes a URL to prevent duplicate scrapes by:
+        - Removing fragment identifiers (#...)
+        - Stripping common analytics tracking query parameters (utm_*, gclid, fbclid, etc.)
+        - Sorting query parameters alphabetically
+        - Stripping trailing slashes for standard page paths
+        """
+        if not url:
+            return ""
+        
+        # Remove fragment
+        url = url.split("#")[0]
+        parsed = urlparse(url)
+        
+        # Clean path: strip trailing slash unless it's just the root "/"
+        path = parsed.path
+        if len(path) > 1 and path.endswith("/"):
+            path = path.rstrip("/")
+            
+        # Filter out tracking query parameters
+        query = parsed.query
+        if query:
+            from urllib.parse import parse_qsl, urlencode
+            params = parse_qsl(query)
+            ignored_params = {
+                "utm_source", "utm_medium", "utm_campaign", "utm_term", 
+                "utm_content", "gclid", "fbclid", "sessionid", "sid", 
+                "phpsessid", "jsessionid"
+            }
+            filtered_params = [
+                (k, v) for k, v in params if k.lower() not in ignored_params
+            ]
+            # Sort alphabetically to guarantee determinism
+            filtered_params.sort(key=lambda x: x[0])
+            new_query = urlencode(filtered_params)
+        else:
+            new_query = ""
+            
+        from urllib.parse import urlunparse
+        return urlunparse((
+            parsed.scheme,
+            parsed.netloc.lower(),
+            path,
+            parsed.params,
+            new_query,
+            ""
+        ))
+
+    @staticmethod
     def extract_links(
         html_content: str,
         base_url: str,
@@ -21,7 +71,7 @@ class LinkExtractor:
         allowed_urls: Optional[List[str]] = None,
     ) -> List[str]:
         """
-        Parses HTML, extracts outbound anchor tags, normalizes links (e.g. stripping fragments),
+        Parses HTML, extracts outbound anchor tags, normalizes links (stripping fragments/params),
         and applies domain or prefix validation.
         """
         if not html_content:
@@ -32,16 +82,16 @@ class LinkExtractor:
         except Exception:
             return []
 
+        normalized_base = LinkExtractor.normalize_url(base_url)
         links = []
         for a_tag in dom.xpath("//a[@href]"):
             href = a_tag.get("href").strip()
             if not href or href.startswith("#") or href.startswith("javascript:"):
                 continue
 
-            full_url = urljoin(base_url, href)
-            # Remove any fragment identifiers
-            full_url = full_url.split("#")[0]
-            parsed = urlparse(full_url)
+            full_url = urljoin(normalized_base, href)
+            normalized_url = LinkExtractor.normalize_url(full_url)
+            parsed = urlparse(normalized_url)
 
             # Only follow http and https links.
             if parsed.scheme not in ("http", "https"):
@@ -51,7 +101,7 @@ class LinkExtractor:
             if allowed_urls:
                 is_allowed = False
                 for prefix in allowed_urls:
-                    if full_url.startswith(str(prefix)):
+                    if normalized_url.startswith(str(prefix)):
                         is_allowed = True
                         break
                 if not is_allowed:
@@ -73,7 +123,7 @@ class LinkExtractor:
                 if not is_allowed:
                     continue
 
-            links.append(full_url)
+            links.append(normalized_url)
 
         return list(set(links))
 

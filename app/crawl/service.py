@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List
+from typing import List, Optional
 from urllib.parse import urlparse
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +49,8 @@ class CrawlService:
             strategy=crawl_req.strategy,
             concurrency_strategy=crawl_req.concurrency_strategy,
             concurrency_limit=crawl_req.concurrency_limit,
+            allowed_domains=crawl_req.allowed_domains,
+            allowed_urls=crawl_req.allowed_urls,
         )
 
         return task
@@ -62,6 +64,8 @@ class CrawlService:
         strategy: str,
         concurrency_strategy: str,
         concurrency_limit: int,
+        allowed_domains: Optional[List[str]] = None,
+        allowed_urls: Optional[List[str]] = None,
     ) -> None:
         """
         Background executor running outside the main request cycle.
@@ -76,20 +80,18 @@ class CrawlService:
             async with SessionLocal() as db:
                 await CrawlRepository.update_task_status(db, task_id, "running")
 
-            # Resolve allowed domains for BFS scoping
-            allowed_domains = []
-            if strategy == "recursive":
+            # Resolve allowed domains for BFS scoping (if not explicitly provided)
+            if strategy == "recursive" and not allowed_domains:
+                extracted_domains = []
                 for url in urls:
                     try:
                         netloc = urlparse(url).netloc
                         if netloc:
-                            allowed_domains.append(netloc)
+                            extracted_domains.append(netloc)
                     except Exception:
                         pass
-                if not allowed_domains:
-                    allowed_domains = None
-            else:
-                allowed_domains = None
+                if extracted_domains:
+                    allowed_domains = extracted_domains
 
             # 2. Run crawl pipeline
             error_message = None
@@ -97,22 +99,14 @@ class CrawlService:
 
             try:
                 # Initialize Playwright browser dynamically within context manager
-                # Launch with UI visible (headless=False) in DEBUG or STAGING modes, otherwise headless=True
-                import os
-
-                mode = os.getenv("MODE", "PRODUCTION").strip("'\" ")
-                headless = True
-                if mode in ("DEBUG", "STAGING"):
-                    headless = False
-
-                async with PlaywrightScraper(headless=headless) as scraper:
+                async with PlaywrightScraper(headless=True) as scraper:
                     # Dynamically instantiate independent DB sessions inside the loop via StorageManager
                     async with SessionLocal() as db:
                         object_storage = LocalObjectStorage(
                             root_dir=crawl_settings.object_storage_root
                         )
                         storage_manager = CrawlStorageManager(
-                            db=db,
+                            db=None,
                             object_storage=object_storage,
                             storage_type=crawl_settings.raw_storage_type,
                             bucket_name=crawl_settings.raw_html_bucket,
@@ -136,7 +130,7 @@ class CrawlService:
                             rate_limiter=rate_limiter,
                             storage_manager=storage_manager,
                             allowed_domains=allowed_domains,
-                            allowed_urls=None,
+                            allowed_urls=allowed_urls,
                         )
 
                         # Start crawl loop. Releases execution context via sleeps to avoid CPU blocking.
