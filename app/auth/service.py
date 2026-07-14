@@ -7,14 +7,15 @@ from app.auth.exceptions import (
     UserAlreadyExistsException,
     InvalidCredentialsException,
     CredentialsException,
-    UserNotFoundException
+    UserNotFoundException,
 )
 from app.auth.security import (
     hash_password,
     verify_password,
     generate_api_key,
-    hash_api_key
+    hash_api_key,
 )
+
 
 class AuthService:
     @staticmethod
@@ -35,7 +36,7 @@ class AuthService:
             user_id=user_create.user_id,
             email=user_create.email,
             password_hash=hashed_password,
-            role=user_create.role or "user"
+            role=user_create.role or "user",
         )
         return await UserRepository.create(db, user)
 
@@ -61,12 +62,7 @@ class AuthService:
         raw_key, prefix = await generate_api_key()
         key_hash = await hash_api_key(raw_key)
 
-        api_key = ApiKey(
-            name=name,
-            prefix=prefix,
-            key_hash=key_hash,
-            user_id=user_id
-        )
+        api_key = ApiKey(name=name, prefix=prefix, key_hash=key_hash, user_id=user_id)
         api_key = await ApiKeyRepository.create(db, api_key)
 
         return {
@@ -74,7 +70,7 @@ class AuthService:
             "name": api_key.name,
             "prefix": api_key.prefix,
             "is_active": api_key.is_active,
-            "plain_key": raw_key
+            "plain_key": raw_key,
         }
 
     @staticmethod
@@ -102,7 +98,9 @@ class AuthService:
         """
         api_key = await ApiKeyRepository.get_by_id(db, key_id)
         if not api_key or api_key.user_id != user_id:
-            raise UserNotFoundException(detail="API Key not found or does not belong to this user")
+            raise UserNotFoundException(
+                detail="API Key not found or does not belong to this user"
+            )
         await ApiKeyRepository.delete(db, api_key)
 
     @staticmethod
@@ -117,4 +115,3 @@ class AuthService:
         await db.commit()
         await db.refresh(user)
         return user
-

@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, Sequence
 from app.auth.models import User, ApiKey
 
+
 class UserRepository:
     @staticmethod
     async def get_by_id(db: AsyncSession, id: int) -> Optional[User]:
@@ -41,6 +42,7 @@ class UserRepository:
         await db.commit()
         await db.refresh(user)
         return user
+
 
 class ApiKeyRepository:
     @staticmethod

@@ -1,5 +1,11 @@
 import pytest
-from app.auth.security import hash_password, verify_password, generate_api_key, hash_api_key
+from app.auth.security import (
+    hash_password,
+    verify_password,
+    generate_api_key,
+    hash_api_key,
+)
+
 
 @pytest.mark.anyio
 async def test_password_hashing():
@@ -11,6 +17,7 @@ async def test_password_hashing():
     assert hashed != password
     assert await verify_password(password, hashed) is True
     assert await verify_password("wrongpassword", hashed) is False
+
 
 @pytest.mark.anyio
 async def test_api_key_generation_and_hash():

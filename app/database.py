@@ -13,23 +13,22 @@ if db_settings.async_database_url.startswith("sqlite"):
 engine = create_async_engine(
     db_settings.async_database_url,
     connect_args=connect_args,
-    pool_size=10,          # Keep up to 10 connections open in the pool
-    max_overflow=20,       # Allow up to 20 extra temporary overflow connections
-    pool_recycle=1800,     # Recycle connections every 30 minutes to prevent stale timeouts
-    pool_timeout=30        # Wait up to 30 seconds to obtain a connection from the pool
+    pool_size=10,  # Keep up to 10 connections open in the pool
+    max_overflow=20,  # Allow up to 20 extra temporary overflow connections
+    pool_recycle=1800,  # Recycle connections every 30 minutes to prevent stale timeouts
+    pool_timeout=30,  # Wait up to 30 seconds to obtain a connection from the pool
 )
 
 # Create an async sessionmaker factory
 SessionLocal = async_sessionmaker(
-    autocommit=False, 
-    autoflush=False, 
-    bind=engine, 
-    class_=AsyncSession
+    autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
 )
+
 
 # Declarative base class for models
 class Base(DeclarativeBase):
     pass
+
 
 # Async Dependency generator to obtain a DB session per request and return it to the pool
 async def get_db():

@@ -10,6 +10,7 @@ os.environ["DB_NAME"] = "test_db.db"
 from app.database import engine
 from main import app
 
+
 @pytest.fixture(name="client")
 def fixture_client():
     """
@@ -42,6 +43,7 @@ def fixture_client():
             os.remove("test_db.db")
         except Exception:
             pass
+
 
 @pytest.fixture
 def anyio_backend():
