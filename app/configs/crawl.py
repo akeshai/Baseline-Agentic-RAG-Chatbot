@@ -8,7 +8,9 @@ class CrawlSettings(BaseSettings):
     crawl_user_agent: str = "ChatBotCrawler/0.1"
 
     # Concurrency defaults
-    concurrency_strategy: str = "concurrent"  # "single" (sequential) or "concurrent" (parallel)
+    concurrency_strategy: str = (
+        "concurrent"  # "single" (sequential) or "concurrent" (parallel)
+    )
     concurrency_limit: int = 3
 
     # Storage defaults

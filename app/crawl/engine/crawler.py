@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional, Set
+from typing import List, Optional, Set
 from app.crawl.engine.scraper import PlaywrightScraper
 from app.crawl.engine.storage import CrawlStorageManager
 from app.crawl.engine.utils import LinkExtractor, RateLimiter
@@ -58,7 +58,9 @@ class CrawlerEngine:
         self.max_depth = max_depth
         self.max_pages = max_pages
         self.concurrency_strategy = concurrency_strategy
-        self.concurrency_limit = concurrency_limit if concurrency_strategy == "concurrent" else 1
+        self.concurrency_limit = (
+            concurrency_limit if concurrency_strategy == "concurrent" else 1
+        )
         self.scraper = scraper
         self.rate_limiter = rate_limiter
         self.storage_manager = storage_manager
@@ -104,7 +106,9 @@ class CrawlerEngine:
             ]
             await asyncio.gather(*workers)
         except Exception as e:
-            logger.error("Crawl engine encountered an unexpected execution error: %s", e)
+            logger.error(
+                "Crawl engine encountered an unexpected execution error: %s", e
+            )
             raise
         finally:
             self.stop_requested = True
@@ -113,7 +117,11 @@ class CrawlerEngine:
                 await scheduler_task
             except asyncio.CancelledError:
                 pass
-            logger.info("Crawl task ID %d engine complete. Scraped count: %d", self.task_id, self.scraped_count)
+            logger.info(
+                "Crawl task ID %d engine complete. Scraped count: %d",
+                self.task_id,
+                self.scraped_count,
+            )
 
     async def _retry_scheduler(self) -> None:
         """
@@ -124,12 +132,20 @@ class CrawlerEngine:
                 await asyncio.sleep(1.0)
                 now = datetime.now(timezone.utc)
                 async with self.lock:
-                    ready_items = [item for item in self.retry_list if item.next_retry_time and item.next_retry_time <= now]
+                    ready_items = [
+                        item
+                        for item in self.retry_list
+                        if item.next_retry_time and item.next_retry_time <= now
+                    ]
                     for item in ready_items:
                         self.retry_list.remove(item)
                         # Push back into active queue
                         await self.queue.put(item)
-                        logger.info("Retry scheduled for url: %s (attempt %d)", item.url, item.retry_count + 1)
+                        logger.info(
+                            "Retry scheduled for url: %s (attempt %d)",
+                            item.url,
+                            item.retry_count + 1,
+                        )
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -167,7 +183,9 @@ class CrawlerEngine:
             try:
                 await self.process_url(item)
             except Exception as e:
-                logger.error("Worker %d failed to process URL %s: %s", worker_id, item.url, e)
+                logger.error(
+                    "Worker %d failed to process URL %s: %s", worker_id, item.url, e
+                )
             finally:
                 async with self.lock:
                     self.active_workers -= 1
@@ -237,12 +255,16 @@ class CrawlerEngine:
                         for link in discovered:
                             if link not in self.visited_urls:
                                 self.visited_urls.add(link)
-                                await self.queue.put(CrawlRequestItem(url=link, depth=item.depth + 1))
+                                await self.queue.put(
+                                    CrawlRequestItem(url=link, depth=item.depth + 1)
+                                )
                                 logger.debug("Discovered and enqueued: %s", link)
 
             else:
                 # Handle Failure & Retries
-                logger.warning("Scrape execution failed for: %s (Error: %s)", url, error_msg)
+                logger.warning(
+                    "Scrape execution failed for: %s (Error: %s)", url, error_msg
+                )
 
                 # Persist failure record into DB for logs
                 await self.storage_manager.store_page(
@@ -269,13 +291,22 @@ class CrawlerEngine:
                     jitter = random.uniform(0, self.retry_jitter)
                     wait_time = backoff + jitter
 
-                    item.next_retry_time = datetime.now(timezone.utc) + timedelta(seconds=wait_time)
+                    item.next_retry_time = datetime.now(timezone.utc) + timedelta(
+                        seconds=wait_time
+                    )
 
                     async with self.lock:
                         self.retry_list.append(item)
-                    logger.warning("Scheduled retry #%d for URL %s in %.2fs", item.retry_count, url, wait_time)
+                    logger.warning(
+                        "Scheduled retry #%d for URL %s in %.2fs",
+                        item.retry_count,
+                        url,
+                        wait_time,
+                    )
                 else:
-                    logger.error("Max retries reached for URL: %s. Dropping request.", url)
+                    logger.error(
+                        "Max retries reached for URL: %s. Dropping request.", url
+                    )
                     await CrawlRepository.increment_pages_counter(
                         self.storage_manager.db, self.task_id, status="failed"
                     )

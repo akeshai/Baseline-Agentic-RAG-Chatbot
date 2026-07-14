@@ -12,13 +12,13 @@ class CrawlTask(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     start_url: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False, default="pending")  # "pending", "running", "completed", "failed"
+    status: Mapped[str] = mapped_column(
+        nullable=False, default="pending"
+    )  # "pending", "running", "completed", "failed"
     pages_crawled: Mapped[int] = mapped_column(nullable=False, default=0)
     pages_failed: Mapped[int] = mapped_column(nullable=False, default=0)
     error_message: Mapped[str] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, default=func.now(), onupdate=func.now()
     )
@@ -38,15 +38,19 @@ class CrawledPage(Base):
     )
     url: Mapped[str] = mapped_column(index=True, nullable=False)
     title: Mapped[str] = mapped_column(nullable=True)
-    html_content: Mapped[str] = mapped_column(nullable=True)  # Nullable if stored in Object Storage
+    html_content: Mapped[str] = mapped_column(
+        nullable=True
+    )  # Nullable if stored in Object Storage
     text_content: Mapped[str] = mapped_column(nullable=True)
     depth: Mapped[int] = mapped_column(nullable=False, default=0)
     status_code: Mapped[int] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(nullable=False, default="success")  # "success", "failed"
+    status: Mapped[str] = mapped_column(
+        nullable=False, default="success"
+    )  # "success", "failed"
     error_log: Mapped[str] = mapped_column(nullable=True)  # Logs errors during fetching
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=func.now())
 
     # Back relationship to the parent task
-    task: Mapped["CrawlTask"] = relationship("CrawlTask", back_populates="crawled_pages")
+    task: Mapped["CrawlTask"] = relationship(
+        "CrawlTask", back_populates="crawled_pages"
+    )

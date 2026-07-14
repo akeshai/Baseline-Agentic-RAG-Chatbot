@@ -77,11 +77,15 @@ class CrawlStorageManager:
                         data=html_content.encode("utf-8"),
                         content_type="text/html",
                     )
-                    logger.info("Uploaded raw HTML to global storage: %s", html_storage_path)
+                    logger.info(
+                        "Uploaded raw HTML to global storage: %s", html_storage_path
+                    )
                 except Exception as e:
                     logger.error("Failed to upload HTML to global storage: %s", e)
                     # Append error to error log
-                    error_log = f"{error_log or ''} [ObjectStorage HTML Error: {e}]".strip()
+                    error_log = (
+                        f"{error_log or ''} [ObjectStorage HTML Error: {e}]".strip()
+                    )
 
             # Upload screenshots if present
             if screenshot_bytes:
@@ -92,7 +96,10 @@ class CrawlStorageManager:
                         data=screenshot_bytes,
                         content_type="image/jpeg",
                     )
-                    logger.info("Uploaded screenshot to global storage: %s", screenshot_storage_path)
+                    logger.info(
+                        "Uploaded screenshot to global storage: %s",
+                        screenshot_storage_path,
+                    )
                 except Exception as e:
                     logger.error("Failed to upload screenshot to global storage: %s", e)
                     error_log = f"{error_log or ''} [ObjectStorage Screenshot Error: {e}]".strip()
@@ -103,7 +110,9 @@ class CrawlStorageManager:
         db_html = html_content
         if self.storage_type == "object":
             # Store the path to raw file in place of HTML content
-            db_html = f"object://{self.bucket_name}/{html_key}" if html_storage_path else None
+            db_html = (
+                f"object://{self.bucket_name}/{html_key}" if html_storage_path else None
+            )
 
         page = CrawledPage(
             task_id=task_id,

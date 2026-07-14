@@ -4,19 +4,31 @@ from pydantic import BaseModel, Field, HttpUrl, ConfigDict
 
 
 class CrawlRequest(BaseModel):
-    urls: List[HttpUrl] = Field(..., description="List of seed URLs to crawl or refresh")
-    max_depth: int = Field(default=2, ge=0, le=5, description="Maximum crawl depth (0 for single page/no discovery)")
-    max_pages: int = Field(default=20, ge=1, le=100, description="Maximum total pages to crawl")
+    urls: List[HttpUrl] = Field(
+        ..., description="List of seed URLs to crawl or refresh"
+    )
+    max_depth: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="Maximum crawl depth (0 for single page/no discovery)",
+    )
+    max_pages: int = Field(
+        default=20, ge=1, le=100, description="Maximum total pages to crawl"
+    )
     strategy: Literal["single", "recursive"] = Field(
         default="recursive",
-        description="Single only crawls inputs; recursive discovers and follows local links."
+        description="Single only crawls inputs; recursive discovers and follows local links.",
     )
     concurrency_strategy: Literal["single", "concurrent"] = Field(
         default="concurrent",
-        description="Sequential single context vs parallel concurrent multi-page workers."
+        description="Sequential single context vs parallel concurrent multi-page workers.",
     )
     concurrency_limit: int = Field(
-        default=3, ge=1, le=10, description="Max concurrent page workers (applicable only in concurrent mode)"
+        default=3,
+        ge=1,
+        le=10,
+        description="Max concurrent page workers (applicable only in concurrent mode)",
     )
 
 

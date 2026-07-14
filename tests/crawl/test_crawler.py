@@ -2,9 +2,8 @@ import os
 import shutil
 from contextlib import nullcontext
 from unittest.mock import AsyncMock, patch
-import pytest
 from app.configs.crawl import settings as crawl_settings
-from app.storage.local import LocalObjectStorage
+
 
 # Helper to register and create API key
 def get_auth_headers(client) -> dict:
@@ -38,7 +37,9 @@ def get_scraper_patch():
     else:
         mock_scraper = AsyncMock()
         mock_scraper.__aenter__.return_value = mock_scraper
-        return patch("app.crawl.service.PlaywrightScraper", return_value=mock_scraper), mock_scraper
+        return patch(
+            "app.crawl.service.PlaywrightScraper", return_value=mock_scraper
+        ), mock_scraper
 
 
 def test_selectors_yaml_file_exists():
@@ -90,6 +91,12 @@ def test_create_crawl_task_db_storage(client):
         assert data["status"] in ("pending", "running", "completed")
         assert data["start_url"].startswith("https://example.com")
         task_id = data["id"]
+
+        # List all tasks to verify task list endpoint
+        all_tasks_resp = client.get("/crawl/tasks", headers=headers)
+        assert all_tasks_resp.status_code == 200
+        all_tasks = all_tasks_resp.json()
+        assert any(t["id"] == task_id for t in all_tasks)
 
         # Retrieve task details to verify background completion
         task_resp = client.get(f"/crawl/tasks/{task_id}", headers=headers)
@@ -164,13 +171,17 @@ def test_create_crawl_task_object_storage(client):
                 assert task_resp.json()["status"] == "completed"
 
                 # Check pages list
-                pages_resp = client.get(f"/crawl/tasks/{task_id}/pages", headers=headers)
+                pages_resp = client.get(
+                    f"/crawl/tasks/{task_id}/pages", headers=headers
+                )
                 pages = pages_resp.json()
                 assert len(pages) == 1
                 page_id = pages[0]["id"]
 
                 # Fetch page detail
-                page_detail_resp = client.get(f"/crawl/pages/{page_id}", headers=headers)
+                page_detail_resp = client.get(
+                    f"/crawl/pages/{page_id}", headers=headers
+                )
                 assert page_detail_resp.status_code == 200
                 page_detail = page_detail_resp.json()
 
@@ -183,8 +194,12 @@ def test_create_crawl_task_object_storage(client):
 
                 # Verify file structure on disk simulating bucket layout
                 task_folder = os.path.join(bucket_dir, "crawls", "tasks", str(task_id))
-                assert os.path.exists(os.path.join(task_folder, "html")), "HTML directory not created"
-                assert os.path.exists(os.path.join(task_folder, "screenshots")), "Screenshot directory not created"
+                assert os.path.exists(os.path.join(task_folder, "html")), (
+                    "HTML directory not created"
+                )
+                assert os.path.exists(os.path.join(task_folder, "screenshots")), (
+                    "Screenshot directory not created"
+                )
 
     # Clean up test directories
     if os.path.exists(bucket_dir):
@@ -217,6 +232,7 @@ def test_crawler_exponential_backoff_retry(client):
 
         # Shorten backoff durations for fast testing
         from app.crawl.engine.crawler import CrawlerEngine
+
         original_init = CrawlerEngine.__init__
 
         def mock_engine_init(self, *args, **kwargs):
@@ -269,54 +285,64 @@ def test_crawler_headless_mode_env_behavior():
     with patch("app.crawl.service.PlaywrightScraper") as mock_scraper_class:
         # Mock DB sessions and repo calls
         from unittest.mock import MagicMock
-        with patch("app.crawl.service.SessionLocal"), \
-             patch("app.crawl.service.CrawlRepository", new_callable=AsyncMock), \
-             patch("app.crawl.service.CrawlerEngine", new_callable=MagicMock) as mock_engine_class:
-             
-             mock_engine = AsyncMock()
-             mock_engine_class.return_value = mock_engine
-             mock_scraper_class.return_value = AsyncMock()
-             mock_scraper_class.return_value.__aenter__.return_value = AsyncMock()
-             
-             # Case 1: MODE is 'DEBUG' -> should configure headless=False
-             with patch.dict(os.environ, {"MODE": "DEBUG"}):
-                 asyncio.run(CrawlService.run_crawl_background(
-                     task_id=999,
-                     urls=["https://example.com"],
-                     max_depth=0,
-                     max_pages=1,
-                     strategy="single",
-                     concurrency_strategy="single",
-                     concurrency_limit=1
-                 ))
-                 mock_scraper_class.assert_called_with(headless=False)
-             
-             mock_scraper_class.reset_mock()
-             
-             # Case 2: MODE is 'STAGING' -> should configure headless=False
-             with patch.dict(os.environ, {"MODE": "STAGING"}):
-                 asyncio.run(CrawlService.run_crawl_background(
-                     task_id=999,
-                     urls=["https://example.com"],
-                     max_depth=0,
-                     max_pages=1,
-                     strategy="single",
-                     concurrency_strategy="single",
-                     concurrency_limit=1
-                 ))
-                 mock_scraper_class.assert_called_with(headless=False)
-                 
-             mock_scraper_class.reset_mock()
-             
-             # Case 3: MODE is 'PRODUCTION' -> should configure headless=True
-             with patch.dict(os.environ, {"MODE": "PRODUCTION"}):
-                 asyncio.run(CrawlService.run_crawl_background(
-                     task_id=999,
-                     urls=["https://example.com"],
-                     max_depth=0,
-                     max_pages=1,
-                     strategy="single",
-                     concurrency_strategy="single",
-                     concurrency_limit=1
-                 ))
-                 mock_scraper_class.assert_called_with(headless=True)
+
+        with (
+            patch("app.crawl.service.SessionLocal"),
+            patch("app.crawl.service.CrawlRepository", new_callable=AsyncMock),
+            patch(
+                "app.crawl.service.CrawlerEngine", new_callable=MagicMock
+            ) as mock_engine_class,
+        ):
+            mock_engine = AsyncMock()
+            mock_engine_class.return_value = mock_engine
+            mock_scraper_class.return_value = AsyncMock()
+            mock_scraper_class.return_value.__aenter__.return_value = AsyncMock()
+
+            # Case 1: MODE is 'DEBUG' -> should configure headless=False
+            with patch.dict(os.environ, {"MODE": "DEBUG"}):
+                asyncio.run(
+                    CrawlService.run_crawl_background(
+                        task_id=999,
+                        urls=["https://example.com"],
+                        max_depth=0,
+                        max_pages=1,
+                        strategy="single",
+                        concurrency_strategy="single",
+                        concurrency_limit=1,
+                    )
+                )
+                mock_scraper_class.assert_called_with(headless=False)
+
+            mock_scraper_class.reset_mock()
+
+            # Case 2: MODE is 'STAGING' -> should configure headless=False
+            with patch.dict(os.environ, {"MODE": "STAGING"}):
+                asyncio.run(
+                    CrawlService.run_crawl_background(
+                        task_id=999,
+                        urls=["https://example.com"],
+                        max_depth=0,
+                        max_pages=1,
+                        strategy="single",
+                        concurrency_strategy="single",
+                        concurrency_limit=1,
+                    )
+                )
+                mock_scraper_class.assert_called_with(headless=False)
+
+            mock_scraper_class.reset_mock()
+
+            # Case 3: MODE is 'PRODUCTION' -> should configure headless=True
+            with patch.dict(os.environ, {"MODE": "PRODUCTION"}):
+                asyncio.run(
+                    CrawlService.run_crawl_background(
+                        task_id=999,
+                        urls=["https://example.com"],
+                        max_depth=0,
+                        max_pages=1,
+                        strategy="single",
+                        concurrency_strategy="single",
+                        concurrency_limit=1,
+                    )
+                )
+                mock_scraper_class.assert_called_with(headless=True)

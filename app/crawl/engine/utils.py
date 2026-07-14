@@ -168,11 +168,15 @@ class RateLimiter:
                 sleep_duration = 0.1
                 if len(self.minute_window) >= self.max_requests_per_minute:
                     resumes_at = self.minute_window[0] + timedelta(seconds=60)
-                    sleep_duration = max(sleep_duration, (resumes_at - now).total_seconds())
+                    sleep_duration = max(
+                        sleep_duration, (resumes_at - now).total_seconds()
+                    )
 
                 if len(self.hour_window) >= self.max_requests_per_hour:
                     resumes_at = self.hour_window[0] + timedelta(seconds=3600)
-                    sleep_duration = max(sleep_duration, (resumes_at - now).total_seconds())
+                    sleep_duration = max(
+                        sleep_duration, (resumes_at - now).total_seconds()
+                    )
 
                 # Add a small buffer to avoid off-by-one timestamp comparisons
                 await asyncio.sleep(sleep_duration + 0.05)

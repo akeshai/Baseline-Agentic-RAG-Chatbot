@@ -1,4 +1,3 @@
-import os
 import asyncio
 from pathlib import Path
 from app.storage.interface import BaseObjectStorage
@@ -20,10 +19,14 @@ class LocalObjectStorage(BaseObjectStorage):
         Prevents directory traversal (e.g. key containing '../../').
         """
         # Normalize target path
-        target_path = Path(self.root_dir / bucket / key.replace("\\", "/").lstrip("/")).resolve()
+        target_path = Path(
+            self.root_dir / bucket / key.replace("\\", "/").lstrip("/")
+        ).resolve()
         # Verify the path is within self.root_dir
         if not str(target_path).startswith(str(self.root_dir)):
-            raise ValueError(f"Directory traversal detected for bucket={bucket}, key={key}")
+            raise ValueError(
+                f"Directory traversal detected for bucket={bucket}, key={key}"
+            )
         return target_path
 
     async def upload_file(

@@ -25,7 +25,10 @@ _concurrent_crawls_semaphore = asyncio.Semaphore(2)
 class CrawlService:
     @staticmethod
     async def start_crawl_task(
-        db: AsyncSession, user_id: int, crawl_req: CrawlRequest, background_tasks: BackgroundTasks
+        db: AsyncSession,
+        user_id: int,
+        crawl_req: CrawlRequest,
+        background_tasks: BackgroundTasks,
     ) -> CrawlTask:
         """
         Creates a pending crawl task in the database and triggers the background crawler.
@@ -96,6 +99,7 @@ class CrawlService:
                 # Initialize Playwright browser dynamically within context manager
                 # Launch with UI visible (headless=False) in DEBUG or STAGING modes, otherwise headless=True
                 import os
+
                 mode = os.getenv("MODE", "PRODUCTION").strip("'\" ")
                 headless = True
                 if mode in ("DEBUG", "STAGING"):
@@ -104,7 +108,9 @@ class CrawlService:
                 async with PlaywrightScraper(headless=headless) as scraper:
                     # Dynamically instantiate independent DB sessions inside the loop via StorageManager
                     async with SessionLocal() as db:
-                        object_storage = LocalObjectStorage(root_dir=crawl_settings.object_storage_root)
+                        object_storage = LocalObjectStorage(
+                            root_dir=crawl_settings.object_storage_root
+                        )
                         storage_manager = CrawlStorageManager(
                             db=db,
                             object_storage=object_storage,
@@ -137,10 +143,14 @@ class CrawlService:
                         await engine.start()
 
             except Exception as e:
-                logger.exception("Crawl task ID %d failed in background execution", task_id)
+                logger.exception(
+                    "Crawl task ID %d failed in background execution", task_id
+                )
                 status = "failed"
                 error_message = str(e)
 
             # 3. Update task final status
             async with SessionLocal() as db:
-                await CrawlRepository.update_task_status(db, task_id, status, error_message)
+                await CrawlRepository.update_task_status(
+                    db, task_id, status, error_message
+                )

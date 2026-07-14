@@ -35,11 +35,15 @@ class CrawlRepository:
         return task
 
     @staticmethod
-    async def get_task_by_id(db: AsyncSession, task_id: int, user_id: int) -> Optional[CrawlTask]:
+    async def get_task_by_id(
+        db: AsyncSession, task_id: int, user_id: int
+    ) -> Optional[CrawlTask]:
         """
         Retrieves a crawl task by ID, verifying ownership by user_id.
         """
-        stmt = select(CrawlTask).filter(CrawlTask.id == task_id, CrawlTask.user_id == user_id)
+        stmt = select(CrawlTask).filter(
+            CrawlTask.id == task_id, CrawlTask.user_id == user_id
+        )
         result = await db.execute(stmt)
         return result.scalars().first()
 
@@ -48,7 +52,11 @@ class CrawlRepository:
         """
         Lists all crawl tasks belonging to a specific user, sorted newest first.
         """
-        stmt = select(CrawlTask).filter(CrawlTask.user_id == user_id).order_by(CrawlTask.created_at.desc())
+        stmt = (
+            select(CrawlTask)
+            .filter(CrawlTask.user_id == user_id)
+            .order_by(CrawlTask.created_at.desc())
+        )
         result = await db.execute(stmt)
         return result.scalars().all()
 
@@ -82,11 +90,17 @@ class CrawlRepository:
         return page
 
     @staticmethod
-    async def list_pages_by_task(db: AsyncSession, task_id: int) -> Sequence[CrawledPage]:
+    async def list_pages_by_task(
+        db: AsyncSession, task_id: int
+    ) -> Sequence[CrawledPage]:
         """
         Retrieves all pages crawled for a specific task.
         """
-        stmt = select(CrawledPage).filter(CrawledPage.task_id == task_id).order_by(CrawledPage.created_at.asc())
+        stmt = (
+            select(CrawledPage)
+            .filter(CrawledPage.task_id == task_id)
+            .order_by(CrawledPage.created_at.asc())
+        )
         result = await db.execute(stmt)
         return result.scalars().all()
 

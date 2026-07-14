@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -58,7 +57,9 @@ class PlaywrightScraper:
             except Exception as e:
                 logger.error("Failed to parse selectors.yaml: %s", e)
         else:
-            logger.warning("selectors.yaml not found at %s. Using internal defaults.", config_path)
+            logger.warning(
+                "selectors.yaml not found at %s. Using internal defaults.", config_path
+            )
 
     def _get_site_config(self, url: str) -> Dict[str, Any]:
         """
@@ -75,13 +76,16 @@ class PlaywrightScraper:
             if domain == target_domain or domain.endswith("." + target_domain):
                 return {**self.selectors_config.get("default", {}), **entry}
 
-        return self.selectors_config.get("default", {
-            "content_selector": "body",
-            "loader_selector": None,
-            "min_content_length": 100,
-            "timeout_ms": 30000,
-            "wait_for_visible": None,
-        })
+        return self.selectors_config.get(
+            "default",
+            {
+                "content_selector": "body",
+                "loader_selector": None,
+                "min_content_length": 100,
+                "timeout_ms": 30000,
+                "wait_for_visible": None,
+            },
+        )
 
     async def __aenter__(self) -> "PlaywrightScraper":
         await self.start()
@@ -119,7 +123,9 @@ class PlaywrightScraper:
         Creates a clean browser context and page, adding interceptors to abort tracking domains.
         """
         if not self.browser:
-            raise RuntimeError("Browser not initialized. Call start() or use async context manager.")
+            raise RuntimeError(
+                "Browser not initialized. Call start() or use async context manager."
+            )
 
         context = await self.browser.new_context(
             viewport={"width": 1280, "height": 800},
@@ -158,22 +164,33 @@ class PlaywrightScraper:
         try:
             logger.info("Navigating to %s (timeout: %dms)", url, timeout_ms)
             # Load page DOM
-            response = await page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            response = await page.goto(
+                url, wait_until="domcontentloaded", timeout=timeout_ms
+            )
             status_code = response.status if response else 200
 
             # 1. Wait for loader to disappear if configured
             if loader_selector:
                 try:
-                    await page.wait_for_selector(loader_selector, state="hidden", timeout=15000)
+                    await page.wait_for_selector(
+                        loader_selector, state="hidden", timeout=15000
+                    )
                 except Exception:
-                    logger.debug("Loader selector %s wait timed out or element not found.", loader_selector)
+                    logger.debug(
+                        "Loader selector %s wait timed out or element not found.",
+                        loader_selector,
+                    )
 
             # 2. Wait for target content visibility if configured
             if wait_for_visible:
-                await page.wait_for_selector(wait_for_visible, state="visible", timeout=15000)
+                await page.wait_for_selector(
+                    wait_for_visible, state="visible", timeout=15000
+                )
 
             # 3. Poll for text content stabilization
-            text_content = await self._poll_until_stable(page, content_selector, min_length, timeout_ms)
+            text_content = await self._poll_until_stable(
+                page, content_selector, min_length, timeout_ms
+            )
 
             # 4. Capture screenshot
             screenshot_bytes = await page.screenshot(
@@ -265,16 +282,22 @@ class PlaywrightScraper:
         logger.info("Scraping PDF document: %s", url)
         try:
             # Check file size with HEAD request
-            async with httpx.AsyncClient(timeout=15.0, headers={"User-Agent": PDF_USER_AGENT}) as client:
+            async with httpx.AsyncClient(
+                timeout=15.0, headers={"User-Agent": PDF_USER_AGENT}
+            ) as client:
                 head = await client.head(url)
                 size_header = head.headers.get("content-length")
                 if size_header and size_header.isdigit():
                     size_bytes = int(size_header)
                     if size_bytes > 50 * 1024 * 1024:  # 50MB
-                        raise ValueError(f"PDF exceeds maximum file size limit (50MB): {size_bytes} bytes")
+                        raise ValueError(
+                            f"PDF exceeds maximum file size limit (50MB): {size_bytes} bytes"
+                        )
 
             # Download PDF bytes
-            async with httpx.AsyncClient(timeout=60.0, headers={"User-Agent": PDF_USER_AGENT}) as client:
+            async with httpx.AsyncClient(
+                timeout=60.0, headers={"User-Agent": PDF_USER_AGENT}
+            ) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
                 pdf_data = resp.content
@@ -292,25 +315,31 @@ class PlaywrightScraper:
                 with pdfplumber.open(temp_path) as pdf:
                     total_pages = len(pdf.pages)
                     if total_pages > 100:
-                        logger.warning("PDF %s contains %d pages (limit: 100). Skipping.", url, total_pages)
+                        logger.warning(
+                            "PDF %s contains %d pages (limit: 100). Skipping.",
+                            url,
+                            total_pages,
+                        )
                         return []
 
                     for page_idx, page in enumerate(pdf.pages, start=1):
                         text = page.extract_text() or ""
-                        parsed_pages.append({
-                            "url": f"{url}#page={page_idx}",
-                            "title": f"{filename} - Page {page_idx}",
-                            "html_content": None,
-                            "text_content": text.strip(),
-                            "status_code": 200,
-                            "screenshot": None,
-                            "status": "success",
-                            "error": None,
-                            "pdf_metadata": {
-                                "page_number": page_idx,
-                                "total_pages": total_pages,
+                        parsed_pages.append(
+                            {
+                                "url": f"{url}#page={page_idx}",
+                                "title": f"{filename} - Page {page_idx}",
+                                "html_content": None,
+                                "text_content": text.strip(),
+                                "status_code": 200,
+                                "screenshot": None,
+                                "status": "success",
+                                "error": None,
+                                "pdf_metadata": {
+                                    "page_number": page_idx,
+                                    "total_pages": total_pages,
+                                },
                             }
-                        })
+                        )
             finally:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
@@ -319,13 +348,15 @@ class PlaywrightScraper:
 
         except Exception as e:
             logger.error("Failed to parse PDF from %s: %s", url, e)
-            return [{
-                "url": url,
-                "title": None,
-                "html_content": None,
-                "text_content": None,
-                "status_code": 500,
-                "screenshot": None,
-                "status": "failed",
-                "error": str(e),
-            }]
+            return [
+                {
+                    "url": url,
+                    "title": None,
+                    "html_content": None,
+                    "text_content": None,
+                    "status_code": 500,
+                    "screenshot": None,
+                    "status": "failed",
+                    "error": str(e),
+                }
+            ]
