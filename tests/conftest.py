@@ -3,8 +3,9 @@ import pytest
 import asyncio
 from fastapi.testclient import TestClient
 
-# Configure database URL to point to a temporary SQLite test database before importing modules
-os.environ["DATABASE_URL"] = "sqlite:///./test_db.db"
+# Configure database settings to point to a temporary SQLite test database before importing modules
+os.environ["DB_TYPE"] = "sqlite"
+os.environ["DB_NAME"] = "test_db.db"
 
 from app.database import engine
 from main import app
