@@ -86,9 +86,7 @@ async def test_ingestion_service_lifecycle(setup_db):
     Case 3: Updated (content changes, version bumps, chunk sync)
     """
     # Mock Redis to avoid network traffic
-    with (
-        patch("app.ingest.service.FAQCache._cache_faqs_sync") as mock_redis_cache,
-        patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict,
+    with (patch("app.ingest.service.FAQCache._cache_faqs_sync") as mock_redis_cache,patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict,
     ):  # noqa
         service = IngestionService()
         identifier = "manual://tests/test_doc_lifecycle"
