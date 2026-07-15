@@ -26,7 +26,9 @@ Here are the key modules and directories of the project:
 -   [Dockerfile](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/Dockerfile) - Optimization-caching Docker recipe running Python 3.13 and Playwright Chromium.
 -   [docker-compose-dev.yml](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docker-compose-dev.yml) - Local development stack (Database, Redis, MinIO, CloudBeaver, ChatBot App).
 -   [app/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app) - Primary application codebase.
-    -   [app/configs/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/configs) - Global configurations (Database, Auth settings, and Crawler settings).
+    -   [app/configs/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/configs) - Global configurations (Database, Auth settings, Crawler, and [LLM/Embeddings configs](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/configs/llm.py)).
+    -   [app/llm/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/llm) - Modular LLM adapters ([OCILLMAdapter](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/llm/oci.py)). Supports dedicated clusters and chat routing.
+    -   [app/embeddings/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/embeddings) - Modular embedding adapters ([OCIEmbeddingAdapter](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/embeddings/oci.py)). Supports batched asymmetric query/document embeddings.
     -   [app/storage/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/storage) - Reusable global Object Storage drivers ([LocalObjectStorage](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/storage/local.py)).
     -   [app/vector_store/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/vector_store) - Modular vector search adapters ([PGVectorStore](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/vector_store/pgvector.py)).
     -   [app/auth/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/auth) - API Key and credentials authorization logic.
@@ -41,18 +43,30 @@ Here are the key modules and directories of the project:
     -   [tests/auth/](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/tests/auth) - Credentials security tests.
     -   [tests/crawl/test_crawler.py](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/tests/crawl/test_crawler.py) - Crawl integration test suites.
     -   [tests/ingest/test_ingest.py](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/tests/ingest/test_ingest.py) - Ingest and table parser tests.
+    -   [tests/test_adapters.py](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/tests/test_adapters.py) - Adapter mock tests.
+    -   [tests/test_oci_embeddings.py](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/tests/test_oci_embeddings.py) - Live OCI Embedding verification tests.
+    -   [tests/test_oci_llm.py](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/tests/test_oci_llm.py) - Live OCI LLM verification tests.
 
 ---
 
 ## Quick Start Guide
 
 ### 1. Setup Environment
-Create a [.env](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/.env) file at the root:
+Create a [.env](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/.env) file at the root. Set up your OCI credentials profile key path (`app/configs/oci.secret.key`) and PEM file:
 ```ini
 DB_TYPE=sqlite
 DB_NAME=chatbot.db
 MODE=DEBUG
+
+# OCI Configurations
+OCI_COMPARTMENT_ID=ocid1.compartment.oc1..aaaaaaaapzmwanfp7acyups5o36nxn7ewrrkh6p6jb2bo2myxzsbfwiafl7a
+OCI_GENAI_ENDPOINT=https://inference.generativeai.ap-hyderabad-1.oci.oraclecloud.com
+OCI_CONFIG_PATH=app/configs/oci.secret.key
+OCI_MODEL_ID=ocid1.generativeaiendpoint.oc1.ap-hyderabad-1.amaaaaaahuyxkqya26ao6xcuznqkww5csknnbnomqxsjyfv6cguc7zynblpa
+OCI_EMBEDDING_MODEL=cohere.embed-multilingual-image-v3.0
 ```
+
+Make sure your OCI private key is saved at `app/configs/private-key.pem` (and `app/configs/oci.secret.key` has its `key_file` path pointing to it).
 
 ### 2. Install and Initialize (Local Run)
 Make sure `uv` is installed, then synchronize package dependencies and download Playwright browsers:
@@ -103,13 +117,30 @@ docker compose -f docker-compose-dev.yml up -d --build
 We support two execution environments for automated testing:
 
 1.  **Fast Mock Mode (CI / Production Default)**:
-    Runs all tests locally and instantly by mock patching the browser network fetches:
+    Runs all tests locally and instantly by mock patching the Playwright browser and OCI SDK client:
     ```bash
     uv run pytest
     ```
-2.  **Live Browser Integration Mode (Local Debug)**:
-    Spins up the **actual Playwright browser** to fetch targets, save screenshots, and verify object files:
+2.  **Live Integration Mode (Local Debug)**:
+    Spins up the **actual Playwright browser** (with `headless=False` for visual tracking) and queries the **live OCI GenAI API** to verify embedding and generation results:
     ```powershell
     $env:MODE="DEBUG"
+    
+    # Run Playwright crawling test with live browser
     uv run pytest -s tests/crawl/test_crawler.py
+    
+    # Run live OCI embeddings and LLM tests
+    uv run pytest -s tests/test_oci_embeddings.py
+    uv run pytest -s tests/test_oci_llm.py
     ```
+
+---
+
+## Pre-Push Hooks
+
+This project is configured with a Git pre-push hook using `ruff`. Prior to executing any `git push` command, it will automatically validate:
+1. **Ruff formatting:** Code style formatted via `uv run ruff format --check`
+2. **Ruff linting:** Rules checked via `uv run ruff check`
+3. **Offline unit tests:** Pytest unit tests checked via `uv run pytest -m "not real_oci"` (ignoring slow live API calls)
+
+If any check fails, your push will be aborted. Run `uv run ruff format` and `uv run ruff check --fix` locally to resolve formatting and lint rules.

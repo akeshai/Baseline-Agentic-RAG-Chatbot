@@ -5,16 +5,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import pytest # noqa: E402
-from fastapi.testclient import TestClient # noqa: E402
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
 
 os.environ["DB_TYPE"] = "sqlite"
 os.environ["DB_NAME"] = "test_db.db"
 os.environ["OBJECT_STORAGE_PROVIDER"] = "local"
 os.environ["OBJECT_STORAGE_ROOT"] = "test_storage_buckets"
 
-from app.database import engine # noqa: E402
-from main import app # noqa: E402
+from app.database import engine  # noqa: E402
+from main import app  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
