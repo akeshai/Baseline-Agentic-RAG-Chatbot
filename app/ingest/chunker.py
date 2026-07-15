@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import re
-from typing import List, Dict, Any, Tuple
-from bs4 import BeautifulSoup
+from typing import Any, Dict, List, Tuple
+
 import tiktoken
-from app.ingest.parser import HTMLTableParser
+from bs4 import BeautifulSoup
+
 from app.configs.ingest import settings as ingest_settings
+from app.ingest.parser import HTMLTableParser
 
 logger = logging.getLogger(__name__)
 

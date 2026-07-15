@@ -1,11 +1,12 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 from sqlalchemy import select
 
-from app.database import SessionLocal, engine, Base
-from app.ingest.models import IngestedDocument, DocumentVersion, DocumentChunk
-from app.ingest.parser import HTMLTableParser
+from app.database import Base, SessionLocal, engine
 from app.ingest.chunker import TokenAwareChunker
+from app.ingest.models import DocumentChunk, DocumentVersion, IngestedDocument
+from app.ingest.parser import HTMLTableParser
 from app.ingest.service import IngestionService
 
 
@@ -13,6 +14,7 @@ from app.ingest.service import IngestionService
 async def setup_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -86,7 +88,9 @@ async def test_ingestion_service_lifecycle(setup_db):
     Case 3: Updated (content changes, version bumps, chunk sync)
     """
     # Mock Redis to avoid network traffic
-    with (patch("app.ingest.service.FAQCache._cache_faqs_sync") as mock_redis_cache,patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict,
+    with (
+        patch("app.ingest.service.FAQCache._cache_faqs_sync"),
+        patch("app.ingest.service.FAQCache._evict_faqs_sync"),
     ):  # noqa
         service = IngestionService()
         identifier = "manual://tests/test_doc_lifecycle"
@@ -266,9 +270,10 @@ def test_ingest_metadata_route(client):
     assert post_resp.status_code == 201
 
     # 3. Create mock crawl directory and db page for task 999
-    import shutil
     import asyncio
+    import shutil
     from pathlib import Path
+
     from app.configs.crawl import settings as crawl_settings
     from app.crawl.models import CrawledPage
     from app.database import SessionLocal

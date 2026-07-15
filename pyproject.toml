@@ -31,25 +31,13 @@ dependencies = [
     "redis>=8.0.1",
     "python-multipart",
     "minio>=7.2.20",
+    "oci>=2.120.0",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = [
   "."
 ]
-
-
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = [
-    "E",
-    "F",
-    "I",
+markers = [
+  "real_oci: mark test as executing real OCI API calls"
 ]
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"

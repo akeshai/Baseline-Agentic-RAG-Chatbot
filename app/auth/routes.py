@@ -1,20 +1,22 @@
-from fastapi import APIRouter, Depends, status, Security, HTTPException
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
-from app.database import get_db
+
+from app.auth.exceptions import CredentialsException
 from app.auth.models import User
 from app.auth.schemas import (
+    ApiKeyCreate,
+    ApiKeyCreateResponse,
+    ApiKeyResponse,
+    LoginRequest,
     UserCreate,
     UserResponse,
-    LoginRequest,
     UserRoleUpdate,
-    ApiKeyCreate,
-    ApiKeyResponse,
-    ApiKeyCreateResponse,
 )
 from app.auth.service import AuthService
-from app.auth.exceptions import CredentialsException
+from app.database import get_db
 
 # Initialize API router
 router = APIRouter(prefix="/auth", tags=["Authentication"])

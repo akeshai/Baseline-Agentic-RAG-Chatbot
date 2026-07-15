@@ -1,18 +1,19 @@
 from typing import List
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.routes import get_current_user
-from app.database import get_db
 from app.crawl.repository import CrawlRepository
 from app.crawl.schemas import (
-    CrawlRequest,
     CrawledPageDetailResponse,
     CrawledPageResponse,
+    CrawlRequest,
     CrawlTaskResponse,
 )
 from app.crawl.service import CrawlService
+from app.database import get_db
 
 router = APIRouter(prefix="/crawl", tags=["Crawling"])
 

@@ -1,9 +1,11 @@
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
-from contextlib import asynccontextmanager
-from app.database import engine, Base
+
 from app.auth.routes import router as auth_router
 from app.crawl.routes import router as crawl_router
+from app.database import Base, engine
 from app.ingest import ingest_router
 
 

@@ -2,19 +2,20 @@ import asyncio
 import logging
 from typing import List, Optional
 from urllib.parse import urlparse
+
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.crawl import settings as crawl_settings
-from app.database import SessionLocal
-from app.storage import get_object_storage
+from app.crawl.engine.crawler import CrawlerEngine
 from app.crawl.engine.scraper import PlaywrightScraper
 from app.crawl.engine.storage import CrawlStorageManager
 from app.crawl.engine.utils import RateLimiter
-from app.crawl.engine.crawler import CrawlerEngine
 from app.crawl.models import CrawlTask
 from app.crawl.repository import CrawlRepository
 from app.crawl.schemas import CrawlRequest
+from app.database import SessionLocal
+from app.storage import get_object_storage
 
 logger = logging.getLogger(__name__)
 
@@ -97,9 +98,15 @@ class CrawlService:
             error_message = None
             status = "completed"
 
+            # Run with headless=False in DEBUG mode to allow visual monitoring
+            import os
+
+            mode = os.getenv("MODE", "PRODUCTION").strip("'\" ").upper()
+            is_headless = False if mode == "DEBUG" else True
+
             try:
                 # Initialize Playwright browser dynamically within context manager
-                async with PlaywrightScraper(headless=True) as scraper:
+                async with PlaywrightScraper(headless=is_headless) as scraper:
                     # Dynamically instantiate independent DB sessions inside the loop via StorageManager
                     async with SessionLocal() as db:
                         object_storage = get_object_storage()

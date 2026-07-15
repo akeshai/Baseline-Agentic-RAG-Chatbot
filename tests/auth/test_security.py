@@ -1,9 +1,10 @@
 import pytest
+
 from app.auth.security import (
-    hash_password,
-    verify_password,
     generate_api_key,
     hash_api_key,
+    hash_password,
+    verify_password,
 )
 
 

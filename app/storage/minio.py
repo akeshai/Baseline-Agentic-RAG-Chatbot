@@ -2,7 +2,9 @@ import asyncio
 import io
 import logging
 from typing import Optional
+
 from minio import Minio
+
 from app.storage.interface import BaseObjectStorage
 
 logger = logging.getLogger(__name__)

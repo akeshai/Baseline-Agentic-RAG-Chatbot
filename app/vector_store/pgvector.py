@@ -1,11 +1,12 @@
-import hashlib
-import random
-from typing import List, Dict, Any
-from sqlalchemy import select, delete
-from app.database import SessionLocal
-from app.ingest.models import DocumentVersion, DocumentChunk
+from typing import Any, Dict, List
+
+from sqlalchemy import delete, select
+
 from app.configs.dbs import settings as db_settings
+from app.database import SessionLocal
+from app.ingest.models import DocumentChunk, DocumentVersion
 from app.vector_store.interface import BaseVectorStore
+from app.embeddings import BaseEmbeddingAdapter, get_embedding_adapter
 
 
 class PGVectorStore(BaseVectorStore):
@@ -14,19 +15,8 @@ class PGVectorStore(BaseVectorStore):
     with automatic JSON-fallback operations for SQLite local development and testing.
     """
 
-    async def _get_embedding(self, text: str) -> List[float]:
-        """
-        Generates a deterministic mock embedding vector based on text content.
-        This provides consistent behavior for RAG indices and unit tests without external API calls.
-        """
-        dim = db_settings.vector_dim
-        if not text:
-            return [0.0] * dim
-
-        # Create deterministic seed from content
-        seed = int(hashlib.md5(text.encode("utf-8")).hexdigest(), 16) % 100000
-        rng = random.Random(seed)
-        return [rng.uniform(-1.0, 1.0) for _ in range(dim)]
+    def __init__(self, embedding_adapter: BaseEmbeddingAdapter | None = None):
+        self.embedding_adapter = embedding_adapter or get_embedding_adapter()
 
     async def insert_chunks(
         self,
@@ -39,9 +29,17 @@ class PGVectorStore(BaseVectorStore):
         if not chunks:
             return
 
+        contents = [chunk["content"] for chunk in chunks]
+        vectors = await self.embedding_adapter.embed_documents(contents)
+
         async with SessionLocal() as session:
             for idx, chunk in enumerate(chunks):
-                vector = await self._get_embedding(chunk["content"])
+                # Fallback to zero vector if embedding generation returned fewer results
+                vector = (
+                    vectors[idx]
+                    if idx < len(vectors)
+                    else [0.0] * db_settings.vector_dim
+                )
                 db_chunk = DocumentChunk(
                     version_id=version_id,
                     chunk_index=idx,
@@ -84,7 +82,7 @@ class PGVectorStore(BaseVectorStore):
         or simple table scans on SQLite fallback databases.
         """
         async with SessionLocal() as session:
-            query_vector = await self._get_embedding(query_text)
+            query_vector = await self.embedding_adapter.embed_query(query_text)
             dialect = session.bind.dialect.name
 
             if dialect == "postgresql":

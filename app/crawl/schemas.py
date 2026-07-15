@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Literal, Optional
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class CrawlRequest(BaseModel):

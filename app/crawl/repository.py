@@ -1,7 +1,9 @@
 from typing import Optional, Sequence
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.crawl.models import CrawlTask, CrawledPage
+
+from app.crawl.models import CrawledPage, CrawlTask
 
 
 class CrawlRepository:

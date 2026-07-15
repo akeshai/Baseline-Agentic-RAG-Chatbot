@@ -2,7 +2,9 @@ import hashlib
 import logging
 from typing import Optional
 from urllib.parse import urlparse
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.crawl.models import CrawledPage
 from app.crawl.repository import CrawlRepository
 from app.storage.interface import BaseObjectStorage

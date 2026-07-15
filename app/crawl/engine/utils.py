@@ -4,6 +4,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 from urllib.parse import urljoin, urlparse
+
 import lxml.html
 
 

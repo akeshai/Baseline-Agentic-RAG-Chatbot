@@ -1,13 +1,15 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
 import jwt
+
 from app.auth.exceptions import CredentialsException
 from app.configs.auth import (
-    SECRET_KEY,
-    ALGORITHM,
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    ALGORITHM,
     REFRESH_TOKEN_EXPIRE_DAYS,
+    SECRET_KEY,
 )
 
 

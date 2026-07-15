@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from app.configs.yaml_loader import yaml_config
 
 ingest_yaml = yaml_config.get("ingestion", {})

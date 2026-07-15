@@ -1,6 +1,7 @@
 import os
 import shutil
 from unittest.mock import AsyncMock, patch
+
 from app.configs.crawl import settings as crawl_settings
 
 
@@ -31,7 +32,8 @@ def get_scraper_patch():
     - If MODE is 'PRODUCTION' or unset, it patches PlaywrightScraper with a Mock.
     """
     mode = os.getenv("MODE", "PRODUCTION").strip("'\" ")
-    if mode in ("DEBUG", "STAGING"):
+    # print("MODE:" ,mode )
+    if mode in ("DEBUG"):
         from app.crawl.engine.scraper import PlaywrightScraper
 
         class CustomPlaywrightScraper(PlaywrightScraper):
@@ -53,6 +55,7 @@ def get_scraper_patch():
 def test_selectors_yaml_file_exists():
     """Verify that selectors.yaml is present and contains expected keys."""
     from pathlib import Path
+
     import yaml
 
     path = Path(__file__).parent.parent.parent / "app" / "configs" / "selectors.yaml"

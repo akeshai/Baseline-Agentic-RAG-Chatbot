@@ -1,6 +1,6 @@
 import asyncio
-import secrets
 import hashlib
+import secrets
 
 
 async def generate_api_key() -> tuple[str, str]:

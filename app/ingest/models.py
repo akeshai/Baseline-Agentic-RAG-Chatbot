@@ -1,11 +1,13 @@
 import json
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import ForeignKey, String, func, TEXT
+
+from sqlalchemy import TEXT, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
-from app.database import Base
+
 from app.configs.dbs import settings as db_settings
+from app.database import Base
 
 
 class SafeVector(TypeDecorator):

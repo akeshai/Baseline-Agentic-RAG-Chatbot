@@ -3,16 +3,18 @@ import hashlib
 import json
 import logging
 import re
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 import redis
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import SessionLocal
+
 from app.configs.dbs import settings as db_settings
-from app.ingest.models import IngestedDocument, DocumentVersion
+from app.database import SessionLocal
 from app.ingest.chunker import TokenAwareChunker
-from app.vector_store import BaseVectorStore, PGVectorStore
+from app.ingest.models import DocumentVersion, IngestedDocument
 from app.storage import get_object_storage
+from app.vector_store import BaseVectorStore, PGVectorStore
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,7 @@ class IngestionService:
         Uses task-level presence checks and file modification time updates to remain extremely fast.
         """
         from datetime import datetime, timezone
+
         from app.configs.crawl import settings as crawl_settings
         from app.crawl.models import CrawledPage
         from app.ingest.models import DocumentVersion

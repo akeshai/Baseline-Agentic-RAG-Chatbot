@@ -1,11 +1,11 @@
-from app.crawl.models import CrawlTask, CrawledPage
+from app.crawl.models import CrawledPage, CrawlTask
+from app.crawl.repository import CrawlRepository
 from app.crawl.schemas import (
+    CrawledPageDetailResponse,
+    CrawledPageResponse,
     CrawlRequest,
     CrawlTaskResponse,
-    CrawledPageResponse,
-    CrawledPageDetailResponse,
 )
-from app.crawl.repository import CrawlRepository
 from app.crawl.service import CrawlService
 
 __all__ = [
