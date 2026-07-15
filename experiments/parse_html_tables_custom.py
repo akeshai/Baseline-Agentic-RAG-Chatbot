@@ -3,7 +3,6 @@ from bs4.element import Tag
 
 
 class TableParser:
-
     # -----------------------------
     # Public API
     # -----------------------------
@@ -21,15 +20,9 @@ class TableParser:
         records = []
 
         for row in body_matrix:
-
             row = row + [""] * (len(headers) - len(row))
 
-            records.append(
-                {
-                    headers[i]: row[i].strip()
-                    for i in range(len(headers))
-                }
-            )
+            records.append({headers[i]: row[i].strip() for i in range(len(headers))})
 
         return headers, records
 
@@ -45,13 +38,11 @@ class TableParser:
         span_map = {}
 
         for r, tr in enumerate(rows):
-
             row = []
 
             col = 0
 
             while True:
-
                 if (r, col) not in span_map:
                     break
 
@@ -64,9 +55,7 @@ class TableParser:
             cells = tr.find_all(["td", "th"])
 
             for cell in cells:
-
                 while (r, col) in span_map:
-
                     row.append(span_map[(r, col)])
 
                     del span_map[(r, col)]
@@ -79,13 +68,10 @@ class TableParser:
                 colspan = int(cell.get("colspan", 1))
 
                 for c in range(colspan):
-
                     row.append(value)
 
                     if rowspan > 1:
-
                         for rr in range(1, rowspan):
-
                             span_map[(r + rr, col)] = value
 
                     col += 1
@@ -107,13 +93,9 @@ class TableParser:
         header_rows = 0
 
         for row in matrix:
-
             non_empty = [c for c in row if c.strip()]
 
-            numeric = sum(
-                any(ch.isdigit() for ch in cell)
-                for cell in non_empty
-            )
+            numeric = sum(any(ch.isdigit() for ch in cell) for cell in non_empty)
 
             # looks like data
             if numeric >= len(non_empty) // 2:
@@ -133,13 +115,11 @@ class TableParser:
         headers = []
 
         for c in range(cols):
-
             pieces = []
 
             previous = ""
 
             for r in range(len(header_matrix)):
-
                 value = header_matrix[r][c].strip()
 
                 if not value:
@@ -153,7 +133,7 @@ class TableParser:
                 previous = value
 
             if not pieces:
-                pieces.append(f"Column {c+1}")
+                pieces.append(f"Column {c + 1}")
 
             headers.append(" > ".join(pieces))
 
@@ -162,6 +142,7 @@ class TableParser:
 
 if __name__ == "__main__":
     from bs4 import BeautifulSoup
+
     for i in range(1, 4):
         with open(r"experiments\artifacts\table_html_{}.html.md".format(i)) as f:
             html = f.read()
@@ -178,5 +159,3 @@ if __name__ == "__main__":
             print(r)
 
         print()
-
-        

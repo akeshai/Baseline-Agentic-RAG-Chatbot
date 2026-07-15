@@ -7,18 +7,29 @@ class TextIngestRequest(BaseModel):
     """
     Schema for manual raw text ingestion payloads.
     """
-    source_identifier: str = Field(..., description="Unique URN or descriptive ID matching the text (e.g. manual://docs/rate_notes).")
-    title: Optional[str] = Field(None, description="Optional title description for the document.")
-    text_content: str = Field(..., description="The cleaned raw text content to ingest, chunk, and embed.")
+
+    source_identifier: str = Field(
+        ...,
+        description="Unique URN or descriptive ID matching the text (e.g. manual://docs/rate_notes).",
+    )
+    title: Optional[str] = Field(
+        None, description="Optional title description for the document."
+    )
+    text_content: str = Field(
+        ..., description="The cleaned raw text content to ingest, chunk, and embed."
+    )
 
 
 class IngestResponse(BaseModel):
     """
     Standard output payload for document ingestion requests.
     """
+
     document_id: int
     version: int
-    action: str = Field(..., description="The action executed: 'created', 'updated', or 'skipped'.")
+    action: str = Field(
+        ..., description="The action executed: 'created', 'updated', or 'skipped'."
+    )
     hash: str = Field(..., description="The SHA-256 content hash of the text payload.")
 
 
@@ -49,18 +60,16 @@ class DocumentMetadataResponse(BaseModel):
 
 class TaskMetadata(BaseModel):
     task_id: int
-    status: str       # "pending_ingestion" or "ingested"
+    status: str  # "pending_ingestion" or "ingested"
     created_at: datetime
 
 
 class FileMetadata(BaseModel):
     filename: str
-    status: str       # "pending_ingestion" or "ingested"
+    status: str  # "pending_ingestion" or "ingested"
     last_modified_at: datetime
 
 
 class IngestionStatusResponse(BaseModel):
     crawls: List[TaskMetadata]
     manual_files: List[FileMetadata]
-
-

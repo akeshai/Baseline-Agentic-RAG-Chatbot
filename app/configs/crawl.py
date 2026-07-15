@@ -14,7 +14,9 @@ class CrawlSettings(BaseSettings):
     concurrency_limit: int = 3
 
     # Storage defaults
-    raw_storage_type: str = "object"  # default to "object" to avoid storing whole HTML in database directly
+    raw_storage_type: str = (
+        "object"  # default to "object" to avoid storing whole HTML in database directly
+    )
     object_storage_root: str = "storage_buckets"
     raw_html_bucket: str = "crawls"
 

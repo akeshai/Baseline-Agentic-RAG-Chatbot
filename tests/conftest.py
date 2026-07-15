@@ -19,6 +19,7 @@ def cleanup_test_storage():
     at the end of the test session.
     """
     import shutil
+
     # Clean up before session starts
     if os.path.exists("test_storage_buckets"):
         try:

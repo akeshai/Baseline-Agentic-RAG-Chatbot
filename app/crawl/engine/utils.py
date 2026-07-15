@@ -24,25 +24,34 @@ class LinkExtractor:
         """
         if not url:
             return ""
-        
+
         # Remove fragment
         url = url.split("#")[0]
         parsed = urlparse(url)
-        
+
         # Clean path: strip trailing slash unless it's just the root "/"
         path = parsed.path
         if len(path) > 1 and path.endswith("/"):
             path = path.rstrip("/")
-            
+
         # Filter out tracking query parameters
         query = parsed.query
         if query:
             from urllib.parse import parse_qsl, urlencode
+
             params = parse_qsl(query)
             ignored_params = {
-                "utm_source", "utm_medium", "utm_campaign", "utm_term", 
-                "utm_content", "gclid", "fbclid", "sessionid", "sid", 
-                "phpsessid", "jsessionid"
+                "utm_source",
+                "utm_medium",
+                "utm_campaign",
+                "utm_term",
+                "utm_content",
+                "gclid",
+                "fbclid",
+                "sessionid",
+                "sid",
+                "phpsessid",
+                "jsessionid",
             }
             filtered_params = [
                 (k, v) for k, v in params if k.lower() not in ignored_params
@@ -52,16 +61,12 @@ class LinkExtractor:
             new_query = urlencode(filtered_params)
         else:
             new_query = ""
-            
+
         from urllib.parse import urlunparse
-        return urlunparse((
-            parsed.scheme,
-            parsed.netloc.lower(),
-            path,
-            parsed.params,
-            new_query,
-            ""
-        ))
+
+        return urlunparse(
+            (parsed.scheme, parsed.netloc.lower(), path, parsed.params, new_query, "")
+        )
 
     @staticmethod
     def extract_links(

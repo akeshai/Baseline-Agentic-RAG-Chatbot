@@ -22,7 +22,7 @@ class PGVectorStore(BaseVectorStore):
         dim = db_settings.vector_dim
         if not text:
             return [0.0] * dim
-        
+
         # Create deterministic seed from content
         seed = int(hashlib.md5(text.encode("utf-8")).hexdigest(), 16) % 100000
         rng = random.Random(seed)
@@ -89,9 +89,11 @@ class PGVectorStore(BaseVectorStore):
 
             if dialect == "postgresql":
                 # Compile-safe Cosine Distance operator
-                stmt = select(DocumentChunk).order_by(
-                    DocumentChunk.embedding.op("<=>")(query_vector)
-                ).limit(limit)
+                stmt = (
+                    select(DocumentChunk)
+                    .order_by(DocumentChunk.embedding.op("<=>")(query_vector))
+                    .limit(limit)
+                )
             else:
                 # SQLite fallback: returns matches (simulates database without vector extension)
                 stmt = select(DocumentChunk).limit(limit)

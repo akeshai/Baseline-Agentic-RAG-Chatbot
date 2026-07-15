@@ -68,9 +68,7 @@ class TokenAwareChunker:
         else:
             # Plain text document ingestion
             chunks.extend(
-                self._chunk_plain_text(
-                    text_or_html, source_title, start_index=0
-                )
+                self._chunk_plain_text(text_or_html, source_title, start_index=0)
             )
 
         return chunks
@@ -81,7 +79,7 @@ class TokenAwareChunker:
         source_title: str = None,
     ) -> Tuple[str, List[Dict[str, Any]]]:
         soup = BeautifulSoup(html_content, "lxml")
-        
+
         # If target CSS selector is configured, isolate only the targeted container content
         if self.target_html_selector:
             target_el = soup.select_one(self.target_html_selector)
@@ -90,14 +88,14 @@ class TokenAwareChunker:
             else:
                 logger.warning(
                     "Target HTML selector '%s' not found in document. Falling back to parsing whole page content.",
-                    self.target_html_selector
+                    self.target_html_selector,
                 )
 
         table_chunks: List[Dict[str, Any]] = []
-        
+
         # Determine table titles from surrounding contexts
         title_prefix = f"Table from: {source_title} | " if source_title else ""
-        
+
         table_tags = soup.find_all("table")
         for i, table_tag in enumerate(table_tags):
             try:
@@ -114,24 +112,26 @@ class TokenAwareChunker:
                 for row_idx, row in enumerate(records):
                     # Format as: ColumnA: ValueA | ColumnB: ValueB
                     row_details = " | ".join(
-                        f"{col}: {val}"
-                        for col, val in row.items()
-                        if pd_not_null(val)
+                        f"{col}: {val}" for col, val in row.items() if pd_not_null(val)
                     )
                     content = f"{context_str}\nRow {row_idx + 1}: {row_details}"
-                    
-                    table_chunks.append({
-                        "content": content,
-                        "metadata": {
-                            "type": "table_row",
-                            "table_index": i,
-                            "row_index": row_idx,
-                            "table_title": table_title,
+
+                    table_chunks.append(
+                        {
+                            "content": content,
+                            "metadata": {
+                                "type": "table_row",
+                                "table_index": i,
+                                "row_index": row_idx,
+                                "table_title": table_title,
+                            },
                         }
-                    })
-                
+                    )
+
                 # 2. Replace table tag in raw HTML with a simple marker text to clear it out
-                table_tag.replace_with(soup.new_string(f" [Refer to Table: {table_title}] "))
+                table_tag.replace_with(
+                    soup.new_string(f" [Refer to Table: {table_title}] ")
+                )
             except Exception:
                 # Fallback: remove table tag on exception to prevent raw html tags leak
                 table_tag.decompose()
@@ -140,7 +140,7 @@ class TokenAwareChunker:
         cleaned_text = soup.get_text(separator="\n")
         # Collapse multiple empty newlines
         cleaned_text = re.sub(r"\n\s*\n+", "\n\n", cleaned_text).strip()
-        
+
         return cleaned_text, table_chunks
 
     def _chunk_plain_text(
@@ -165,19 +165,25 @@ class TokenAwareChunker:
 
             if chunk_text:
                 # Add contextual title at the top of each text chunk if available
-                content = f"Document: {source_title}\n\n{chunk_text}" if source_title else chunk_text
-                chunks.append({
-                    "content": content,
-                    "metadata": {
-                        "type": "text",
-                        "chunk_index": idx,
+                content = (
+                    f"Document: {source_title}\n\n{chunk_text}"
+                    if source_title
+                    else chunk_text
+                )
+                chunks.append(
+                    {
+                        "content": content,
+                        "metadata": {
+                            "type": "text",
+                            "chunk_index": idx,
+                        },
                     }
-                })
+                )
                 idx += 1
 
             if end >= len(tokens):
                 break
-            start += (self.chunk_size - self.chunk_overlap)
+            start += self.chunk_size - self.chunk_overlap
 
         return chunks
 
@@ -199,6 +205,7 @@ class TokenAwareChunker:
 
 def pd_not_null(val: Any) -> bool:
     import pandas as pd
+
     if val is None:
         return False
     val_str = str(val).strip().lower()

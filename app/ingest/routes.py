@@ -10,7 +10,11 @@ from app.auth.routes import get_current_user
 from app.database import get_db
 from app.configs.crawl import settings as crawl_settings
 from app.storage import get_object_storage
-from app.ingest.schemas import TextIngestRequest, IngestResponse, IngestionStatusResponse
+from app.ingest.schemas import (
+    TextIngestRequest,
+    IngestResponse,
+    IngestionStatusResponse,
+)
 from app.ingest.service import IngestionService
 
 logger = logging.getLogger(__name__)
@@ -24,6 +28,7 @@ def _parse_pdf_bytes(pdf_bytes: bytes) -> str:
     Synchronous PDF text extractor.
     """
     import pdfplumber
+
     extracted_text = ""
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
         for page in pdf.pages:
@@ -33,7 +38,9 @@ def _parse_pdf_bytes(pdf_bytes: bytes) -> str:
     return extracted_text
 
 
-@router.post("/text", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/text", response_model=IngestResponse, status_code=status.HTTP_201_CREATED
+)
 async def ingest_raw_text(
     req: TextIngestRequest,
     current_user: User = Depends(get_current_user),
@@ -57,7 +64,9 @@ async def ingest_raw_text(
         )
 
 
-@router.post("/file", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/file", response_model=IngestResponse, status_code=status.HTTP_201_CREATED
+)
 async def ingest_manual_file(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -83,7 +92,7 @@ async def ingest_manual_file(
     try:
         # Read uploaded bytes
         file_bytes = await file.read()
-        
+
         # 1. Upload raw copy to global Object Storage (MinIO or local simulation)
         object_storage = get_object_storage()
         storage_key = f"manual/uploads/{filename}"
@@ -118,7 +127,11 @@ async def ingest_manual_file(
         )
 
 
-@router.post("/crawl-task/{task_id}", response_model=List[IngestResponse], status_code=status.HTTP_200_OK)
+@router.post(
+    "/crawl-task/{task_id}",
+    response_model=List[IngestResponse],
+    status_code=status.HTTP_200_OK,
+)
 async def ingest_crawl_task_pages(
     task_id: int,
     db: AsyncSession = Depends(get_db),
@@ -157,7 +170,9 @@ async def ingest_crawl_task_pages(
     return responses
 
 
-@router.get("/metadata", response_model=IngestionStatusResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/metadata", response_model=IngestionStatusResponse, status_code=status.HTTP_200_OK
+)
 async def get_ingested_metadata(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

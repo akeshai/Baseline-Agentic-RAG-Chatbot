@@ -249,6 +249,7 @@ class CrawlerEngine:
                     )
                 else:
                     from app.database import SessionLocal
+
                     async with SessionLocal() as db_session:
                         await CrawlRepository.increment_pages_counter(
                             db_session, self.task_id, status="success"
@@ -324,6 +325,7 @@ class CrawlerEngine:
                         )
                     else:
                         from app.database import SessionLocal
+
                         async with SessionLocal() as db_session:
                             await CrawlRepository.increment_pages_counter(
                                 db_session, self.task_id, status="failed"

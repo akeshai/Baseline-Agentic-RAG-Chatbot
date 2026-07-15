@@ -74,7 +74,6 @@ class HTMLTableParser:
         cleaned = []
 
         for df in dfs:
-
             df = self._clean_dataframe(df)
 
             cleaned.append(df)
@@ -87,34 +86,24 @@ class HTMLTableParser:
         # Flatten MultiIndex
         # ----------------------------
         if self.flatten_headers and isinstance(df.columns, pd.MultiIndex):
-
             df.columns = [
                 " > ".join(
                     str(x).strip()
                     for x in col
-                    if pd.notna(x)
-                    and str(x).strip()
-                    and "Unnamed" not in str(x)
+                    if pd.notna(x) and str(x).strip() and "Unnamed" not in str(x)
                 )
                 for col in df.columns
             ]
 
         else:
-
-            df.columns = [
-                str(c).replace("\n", " ").strip()
-                for c in df.columns
-            ]
+            df.columns = [str(c).replace("\n", " ").strip() for c in df.columns]
 
         # ----------------------------
         # Normalize cells
         # ----------------------------
 
         df = df.map(
-            lambda x:
-            str(x).replace("\xa0", " ").strip()
-            if pd.notna(x)
-            else None
+            lambda x: str(x).replace("\xa0", " ").strip() if pd.notna(x) else None
         )
 
         # ----------------------------
@@ -155,13 +144,11 @@ class HTMLTableParser:
         return df.to_dict(orient="records")
 
 
-
 with open("experiments/artifacts/table_html_4.html.md", "r") as f:
     html = f.read()
 parser = HTMLTableParser()
 dfs = parser.parse_html(html)
 
 for i, df in enumerate(dfs, 1):
-
     print(f"\n--------TABLE {i} --------")
     print(df)

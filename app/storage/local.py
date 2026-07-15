@@ -76,21 +76,24 @@ class LocalObjectStorage(BaseObjectStorage):
 
     async def list_files(self, bucket: str, prefix: str = "") -> list:
         from datetime import datetime
+
         target_dir = self._get_path(bucket, prefix)
         if not target_dir.exists():
             return []
-        
+
         def _list():
             files_info = []
             for p in target_dir.rglob("*"):
                 if p.is_file():
                     rel_key = p.relative_to(self.root_dir / bucket).as_posix()
                     stat = p.stat()
-                    files_info.append({
-                        "key": rel_key,
-                        "filename": p.name,
-                        "mtime": datetime.fromtimestamp(stat.st_mtime),
-                    })
+                    files_info.append(
+                        {
+                            "key": rel_key,
+                            "filename": p.name,
+                            "mtime": datetime.fromtimestamp(stat.st_mtime),
+                        }
+                    )
             return files_info
 
         return await asyncio.to_thread(_list)

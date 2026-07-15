@@ -25,7 +25,7 @@ class MinioObjectStorage(BaseObjectStorage):
         self.access_key = access_key
         self.secret_key = secret_key
         self.secure = secure
-        
+
         # Instantiate the MinIO client
         self.client = Minio(
             endpoint=self.endpoint,
@@ -34,7 +34,9 @@ class MinioObjectStorage(BaseObjectStorage):
             secure=self.secure,
         )
 
-    def _upload_sync(self, bucket: str, key: str, data: bytes, content_type: Optional[str]) -> str:
+    def _upload_sync(
+        self, bucket: str, key: str, data: bytes, content_type: Optional[str]
+    ) -> str:
         # Create bucket automatically if it does not exist
         if not self.client.bucket_exists(bucket):
             logger.info("Bucket '%s' not found. Creating bucket...", bucket)
@@ -55,7 +57,9 @@ class MinioObjectStorage(BaseObjectStorage):
     async def upload_file(
         self, bucket: str, key: str, data: bytes, content_type: str = None
     ) -> str:
-        return await asyncio.to_thread(self._upload_sync, bucket, key, data, content_type)
+        return await asyncio.to_thread(
+            self._upload_sync, bucket, key, data, content_type
+        )
 
     def _download_sync(self, bucket: str, key: str) -> bytes:
         response = self.client.get_object(bucket, key)
@@ -77,16 +81,18 @@ class MinioObjectStorage(BaseObjectStorage):
     def _list_sync(self, bucket: str, prefix: str) -> list:
         if not self.client.bucket_exists(bucket):
             return []
-        
+
         objects = self.client.list_objects(bucket, prefix=prefix, recursive=True)
         files_info = []
         for obj in objects:
             if not obj.is_dir:
-                files_info.append({
-                    "key": obj.object_name,
-                    "filename": obj.object_name.split("/")[-1],
-                    "mtime": obj.last_modified,
-                })
+                files_info.append(
+                    {
+                        "key": obj.object_name,
+                        "filename": obj.object_name.split("/")[-1],
+                        "mtime": obj.last_modified,
+                    }
+                )
         return files_info
 
     async def list_files(self, bucket: str, prefix: str = "") -> list:

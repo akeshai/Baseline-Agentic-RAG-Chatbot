@@ -18,6 +18,7 @@ async def setup_db():
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
     import os
+
     if os.path.exists("test_db.db"):
         try:
             os.remove("test_db.db")
@@ -69,7 +70,7 @@ def test_token_aware_chunker():
     """
     chunker = TokenAwareChunker(chunk_size=10, chunk_overlap=2)
     text = "This is a long piece of text designed to test the chunker token capability."
-    
+
     chunks = chunker._chunk_plain_text(text, source_title="TestDoc")
     assert len(chunks) > 0
     assert all(c["metadata"]["type"] == "text" for c in chunks)
@@ -85,13 +86,14 @@ async def test_ingestion_service_lifecycle(setup_db):
     Case 3: Updated (content changes, version bumps, chunk sync)
     """
     # Mock Redis to avoid network traffic
-    with patch("app.ingest.service.FAQCache._cache_faqs_sync") as mock_redis_cache, \
-         patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict: # noqa
-        
+    with (
+        patch("app.ingest.service.FAQCache._cache_faqs_sync") as mock_redis_cache,
+        patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict,
+    ):  # noqa
         service = IngestionService()
         identifier = "manual://tests/test_doc_lifecycle"
         title = "Lifecycle Document"
-        
+
         # --- Run 1: First Upload (Created) ---
         text_1 = "Q: What is the rate?\nA: The rate is 10% p.a. for standard accounts."
         res_1 = await service.ingest_content(
@@ -112,14 +114,18 @@ async def test_ingestion_service_lifecycle(setup_db):
             assert doc_rec.current_hash == res_1["hash"]
 
             # Check versions
-            ver_stmt = select(DocumentVersion).where(DocumentVersion.document_id == doc_id)
+            ver_stmt = select(DocumentVersion).where(
+                DocumentVersion.document_id == doc_id
+            )
             result = await db.execute(ver_stmt)
             versions = result.scalars().all()
             assert len(versions) == 1
             assert versions[0].status == "active"
-            
+
             # Check chunks
-            chunk_stmt = select(DocumentChunk).where(DocumentChunk.version_id == versions[0].id)
+            chunk_stmt = select(DocumentChunk).where(
+                DocumentChunk.version_id == versions[0].id
+            )
             chunk_result = await db.execute(chunk_stmt)
             chunks = chunk_result.scalars().all()
             assert len(chunks) > 0
@@ -135,7 +141,9 @@ async def test_ingestion_service_lifecycle(setup_db):
         assert res_2["version"] == 1
 
         # --- Run 3: Modify Payload (Updated / Bump Version) ---
-        text_2 = "Q: What is the rate?\nA: The rate is now 11% p.a. for standard accounts."
+        text_2 = (
+            "Q: What is the rate?\nA: The rate is now 11% p.a. for standard accounts."
+        )
         res_3 = await service.ingest_content(
             source_type="manual_text",
             identifier=identifier,
@@ -152,11 +160,13 @@ async def test_ingestion_service_lifecycle(setup_db):
             assert doc_rec.current_hash == res_3["hash"]
 
             # Verifications list
-            ver_stmt = select(DocumentVersion).where(DocumentVersion.document_id == doc_id)
+            ver_stmt = select(DocumentVersion).where(
+                DocumentVersion.document_id == doc_id
+            )
             result = await db.execute(ver_stmt)
             versions = result.scalars().all()
             assert len(versions) == 2
-            
+
             active_ver = [v for v in versions if v.status == "active"]
             superseded_ver = [v for v in versions if v.status == "superseded"]
             assert len(active_ver) == 1
@@ -165,11 +175,15 @@ async def test_ingestion_service_lifecycle(setup_db):
             assert superseded_ver[0].version == 1
 
             # Assert old chunks were cleared and new chunks inserted
-            chunk_stmt_1 = select(DocumentChunk).where(DocumentChunk.version_id == superseded_ver[0].id)
+            chunk_stmt_1 = select(DocumentChunk).where(
+                DocumentChunk.version_id == superseded_ver[0].id
+            )
             chunk_res_1 = await db.execute(chunk_stmt_1)
             assert len(chunk_res_1.scalars().all()) == 0
 
-            chunk_stmt_2 = select(DocumentChunk).where(DocumentChunk.version_id == active_ver[0].id)
+            chunk_stmt_2 = select(DocumentChunk).where(
+                DocumentChunk.version_id == active_ver[0].id
+            )
             chunk_res_2 = await db.execute(chunk_stmt_2)
             assert len(chunk_res_2.scalars().all()) > 0
 
@@ -200,20 +214,21 @@ def test_parsing_real_html_tables():
     Reads moved test HTML files and ensures they parse cleanly.
     """
     import os
+
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-    
+
     # Read table_html_4.html.md which is a large interest rate table
     file_path = os.path.join(assets_dir, "table_html_4.html.md")
     assert os.path.exists(file_path)
-    
+
     with open(file_path, "r", encoding="utf-8") as f:
         html_content = f.read()
-        
+
     parser = HTMLTableParser()
     dfs = parser.parse_html(html_content)
     assert len(dfs) > 0
     df = dfs[0]
-    
+
     # Verify that we parsed rows and columns successfully
     assert not df.empty
     assert df.shape[0] > 0
@@ -286,7 +301,7 @@ def test_ingest_metadata_route(client):
         meta_resp = client.get("/ingest/metadata", headers=headers)
         assert meta_resp.status_code == 200
         status_data = meta_resp.json()
-        
+
         assert "crawls" in status_data
         assert "manual_files" in status_data
 
@@ -350,8 +365,3 @@ def test_target_html_selector_extraction():
     assert "Header content" not in text_targeted
     assert "Footer content" not in text_targeted
     assert "important targeted content" in text_targeted
-
-
-
-
-

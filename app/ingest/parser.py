@@ -77,9 +77,7 @@ class HTMLTableParser:
 
         # 2. Normalize and clean whitespace in cell values
         df = df.map(
-            lambda x: str(x).replace("\xa0", " ").strip()
-            if pd.notna(x)
-            else None
+            lambda x: str(x).replace("\xa0", " ").strip() if pd.notna(x) else None
         )
 
         # 3. Forward fill rowspan cells

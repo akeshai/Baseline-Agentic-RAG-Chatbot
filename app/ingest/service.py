@@ -38,7 +38,9 @@ class FAQCache:
             return
         try:
             await asyncio.to_thread(self._cache_faqs_sync, doc_id, faqs)
-            logger.info("Successfully cached %d FAQs in Redis for doc %d", len(faqs), doc_id)
+            logger.info(
+                "Successfully cached %d FAQs in Redis for doc %d", len(faqs), doc_id
+            )
         except Exception as e:
             logger.warning("Redis FAQ caching failed (graceful bypass): %s", e)
 
@@ -85,6 +87,7 @@ class IngestionService:
         offset: int = 0,
     ) -> List[IngestedDocument]:
         from sqlalchemy.orm import selectinload
+
         stmt = select(IngestedDocument).options(selectinload(IngestedDocument.versions))
         if identifier:
             stmt = stmt.where(IngestedDocument.source_identifier == identifier)
@@ -98,9 +101,9 @@ class IngestionService:
         task_id: int,
     ) -> List[Any]:
         from app.crawl.models import CrawledPage
+
         stmt = select(CrawledPage).where(
-            CrawledPage.task_id == task_id,
-            CrawledPage.status == "success"
+            CrawledPage.task_id == task_id, CrawledPage.status == "success"
         )
         result = await db_session.execute(stmt)
         return list(result.scalars().all())
@@ -124,9 +127,13 @@ class IngestionService:
             return dt
 
         # 1. Retrieve all ingested task IDs (JOIN query)
-        stmt_tasks = select(CrawledPage.task_id).join(
-            IngestedDocument, CrawledPage.url == IngestedDocument.source_identifier
-        ).distinct()
+        stmt_tasks = (
+            select(CrawledPage.task_id)
+            .join(
+                IngestedDocument, CrawledPage.url == IngestedDocument.source_identifier
+            )
+            .distinct()
+        )
         res_tasks = await db_session.execute(stmt_tasks)
         ingested_task_ids = set(res_tasks.scalars().all())
 
@@ -137,8 +144,10 @@ class IngestionService:
         crawls_status = []
         try:
             # List all html files under task prefix
-            task_files = await object_storage.list_files(crawl_settings.raw_html_bucket, "tasks")
-            
+            task_files = await object_storage.list_files(
+                crawl_settings.raw_html_bucket, "tasks"
+            )
+
             # Map task ID to its latest mtime
             task_mtime_map = {}
             for f in task_files:
@@ -148,22 +157,28 @@ class IngestionService:
                     mtime = _to_naive_utc(f["mtime"])
                     if t_id not in task_mtime_map or mtime > task_mtime_map[t_id]:
                         task_mtime_map[t_id] = mtime
-            
+
             # Populate crawls status
             for task_id in sorted(task_mtime_map.keys()):
-                status = "ingested" if task_id in ingested_task_ids else "pending_ingestion"
-                crawls_status.append({
-                    "task_id": task_id,
-                    "status": status,
-                    "created_at": task_mtime_map[task_id],
-                })
+                status = (
+                    "ingested" if task_id in ingested_task_ids else "pending_ingestion"
+                )
+                crawls_status.append(
+                    {
+                        "task_id": task_id,
+                        "status": status,
+                        "created_at": task_mtime_map[task_id],
+                    }
+                )
         except Exception as e:
             logger.error("Failed to list crawl tasks in storage: %s", e)
 
         # 3. Retrieve all ingested manual files keys
-        stmt_files = select(DocumentVersion.raw_storage_key, DocumentVersion.created_at).where(
+        stmt_files = select(
+            DocumentVersion.raw_storage_key, DocumentVersion.created_at
+        ).where(
             DocumentVersion.raw_storage_key.like("manual/uploads/%"),
-            DocumentVersion.status == "active"
+            DocumentVersion.status == "active",
         )
         res_files = await db_session.execute(stmt_files)
         ingested_files_map = {r[0]: _to_naive_utc(r[1]) for r in res_files.all()}
@@ -171,12 +186,14 @@ class IngestionService:
         # 4. Scan manual/uploads/ in storage to list files
         files_status = []
         try:
-            files_list = await object_storage.list_files(crawl_settings.raw_html_bucket, "manual/uploads")
-            
+            files_list = await object_storage.list_files(
+                crawl_settings.raw_html_bucket, "manual/uploads"
+            )
+
             for f in files_list:
                 key = f["key"]
                 mtime = _to_naive_utc(f["mtime"])
-                
+
                 if key not in ingested_files_map:
                     status = "pending_ingestion"
                 else:
@@ -187,11 +204,13 @@ class IngestionService:
                     else:
                         status = "ingested"
 
-                files_status.append({
-                    "filename": f["filename"],
-                    "status": status,
-                    "last_modified_at": mtime,
-                })
+                files_status.append(
+                    {
+                        "filename": f["filename"],
+                        "status": status,
+                        "last_modified_at": mtime,
+                    }
+                )
         except Exception as e:
             logger.error("Failed to list manual files in storage: %s", e)
 
@@ -199,7 +218,6 @@ class IngestionService:
             "crawls": crawls_status,
             "manual_files": files_status,
         }
-
 
     async def ingest_content(
         self,
@@ -228,7 +246,9 @@ class IngestionService:
             if doc:
                 # Case A: Document already exists. Verify if content changed
                 if doc.current_hash == content_hash:
-                    logger.info("Ingestion skipped for %s (hash matches latest)", identifier)
+                    logger.info(
+                        "Ingestion skipped for %s (hash matches latest)", identifier
+                    )
                     return {
                         "document_id": doc.id,
                         "version": doc.current_version,
@@ -348,7 +368,7 @@ class IngestionService:
             re.IGNORECASE | re.DOTALL,
         )
         matches = pattern.findall(text)
-        
+
         faqs = []
         for q, a in matches:
             q_clean = re.sub(r"\s+", " ", q).strip()
