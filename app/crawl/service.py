@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.crawl import settings as crawl_settings
 from app.database import SessionLocal
-from app.storage.local import LocalObjectStorage
+from app.storage import get_object_storage
 from app.crawl.engine.scraper import PlaywrightScraper
 from app.crawl.engine.storage import CrawlStorageManager
 from app.crawl.engine.utils import RateLimiter
@@ -102,9 +102,7 @@ class CrawlService:
                 async with PlaywrightScraper(headless=True) as scraper:
                     # Dynamically instantiate independent DB sessions inside the loop via StorageManager
                     async with SessionLocal() as db:
-                        object_storage = LocalObjectStorage(
-                            root_dir=crawl_settings.object_storage_root
-                        )
+                        object_storage = get_object_storage()
                         storage_manager = CrawlStorageManager(
                             db=None,
                             object_storage=object_storage,

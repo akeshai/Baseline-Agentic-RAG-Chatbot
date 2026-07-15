@@ -3,12 +3,35 @@ import pytest
 import asyncio
 from fastapi.testclient import TestClient
 
-# Configure database settings to point to a temporary SQLite test database before importing modules
 os.environ["DB_TYPE"] = "sqlite"
 os.environ["DB_NAME"] = "test_db.db"
+os.environ["OBJECT_STORAGE_PROVIDER"] = "local"
+os.environ["OBJECT_STORAGE_ROOT"] = "test_storage_buckets"
 
 from app.database import engine
 from main import app
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_storage():
+    """
+    Automatically cleans up any files written to the test_storage_buckets directory
+    at the end of the test session.
+    """
+    import shutil
+    # Clean up before session starts
+    if os.path.exists("test_storage_buckets"):
+        try:
+            shutil.rmtree("test_storage_buckets")
+        except Exception:
+            pass
+    yield
+    # Clean up after session ends
+    if os.path.exists("test_storage_buckets"):
+        try:
+            shutil.rmtree("test_storage_buckets")
+        except Exception:
+            pass
 
 
 @pytest.fixture(name="client")

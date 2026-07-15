@@ -55,12 +55,13 @@ def test_selectors_yaml_file_exists():
     from pathlib import Path
     import yaml
 
-    path = Path(__file__).parent.parent.parent / "app" / "crawl" / "selectors.yaml"
+    path = Path(__file__).parent.parent.parent / "app" / "configs" / "selectors.yaml"
     assert path.exists(), "selectors.yaml does not exist"
     with open(path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-    assert "default" in config
-    assert "domains" in config
+    assert "crawler" in config
+    assert "default" in config["crawler"]
+    assert "domains" in config["crawler"]
 
 
 def test_create_crawl_task_db_storage(client):

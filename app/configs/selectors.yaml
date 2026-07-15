@@ -1,0 +1,24 @@
+# Unified Selectors Configuration
+
+# Ingestion Selector Config
+ingestion:
+  # CSS selector to target specific HTML container section for RAG indexing
+  # Prevents headers, footers, navigation and boilerplate content from polluting search embeddings
+  target_html_selector: "main.page-content"
+
+# Crawler Selectors Config (used by Playwright crawler engine)
+crawler:
+  default:
+    content_selector: "body"
+    loader_selector: null
+    min_content_length: 100
+    timeout_ms: 30000
+    wait_for_visible: null
+
+  domains:
+    - domain: "dcb.bank.in"
+      content_selector: "main.page-content"
+      loader_selector: ".loader"
+      min_content_length: 200
+      timeout_ms: 45000
+      wait_for_visible: "main.page-content"

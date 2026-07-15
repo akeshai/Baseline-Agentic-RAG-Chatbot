@@ -14,9 +14,16 @@ class CrawlSettings(BaseSettings):
     concurrency_limit: int = 3
 
     # Storage defaults
-    raw_storage_type: str = "db"  # "db" (relational tables only) or "object" (metadata to DB, assets to global storage) or "both"
+    raw_storage_type: str = "object"  # default to "object" to avoid storing whole HTML in database directly
     object_storage_root: str = "storage_buckets"
     raw_html_bucket: str = "crawls"
+
+    # Object storage provider: "local" or "minio"
+    object_storage_provider: str = "local"
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_secure: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

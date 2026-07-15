@@ -31,3 +31,11 @@ class BaseObjectStorage(ABC):
         Deletes the file at the specified bucket and key.
         """
         pass
+
+    @abstractmethod
+    async def list_files(self, bucket: str, prefix: str = "") -> list:
+        """
+        Lists all files under the specified bucket and key prefix.
+        Returns a list of dicts: [{"key": str, "filename": str, "mtime": datetime}]
+        """
+        pass

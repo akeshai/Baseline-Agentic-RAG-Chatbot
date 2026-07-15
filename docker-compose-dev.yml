@@ -12,7 +12,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-chatbot}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-chatbot}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -38,9 +38,20 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: [ "CMD", "mc", "ready", "local" ]
       interval: 5s
       timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
       retries: 5
 
   app:
@@ -60,15 +71,21 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-postgres}
       - MODE=DEBUG
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-key-change-in-production}
-      - RAW_STORAGE_TYPE=both
+      - RAW_STORAGE_TYPE=${RAW_STORAGE_TYPE:-object}
       - OBJECT_STORAGE_ROOT=/workspace/storage_buckets
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - OBJECT_STORAGE_PROVIDER=${OBJECT_STORAGE_PROVIDER:-minio}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
       - MINIO_PORT=9000
+      - REDIS_URL=redis://redis:6379/0
+      - VECTOR_DIM=${VECTOR_DIM:-1024}
     depends_on:
       db:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       # - ./app:/workspace/app
@@ -79,3 +96,4 @@ volumes:
   cloudbeaver:
   pgdata:
   minio_data:
+

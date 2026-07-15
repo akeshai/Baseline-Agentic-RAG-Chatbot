@@ -48,11 +48,12 @@ class PlaywrightScraper:
         """
         Loads the YAML configurations for selectors.
         """
-        config_path = Path(__file__).parent.parent / "selectors.yaml"
+        config_path = Path(__file__).parent.parent.parent / "configs" / "selectors.yaml"
         if config_path.exists():
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
-                    self.selectors_config = yaml.safe_load(f) or {}
+                    full_config = yaml.safe_load(f) or {}
+                    self.selectors_config = full_config.get("crawler", {})
                 logger.info("Loaded selectors configuration from %s", config_path)
             except Exception as e:
                 logger.error("Failed to parse selectors.yaml: %s", e)

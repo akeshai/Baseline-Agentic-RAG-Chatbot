@@ -6,11 +6,13 @@ from urllib.parse import quote_plus
 class Settings(BaseSettings):
     db_type: str = "postgresql"
 
-    db_host: str = "localhost"
+    db_host: str = "db"
     db_port: int = 5432
     db_name: str = "chatbot"
     db_user: str = "postgres"
-    db_password: SecretStr = "postgres"
+    db_password: SecretStr = SecretStr("postgres")
+    redis_url: str = "redis://localhost:6379/0"
+    vector_dim: int = 384
 
     model_config = SettingsConfigDict(
         env_file=".env",

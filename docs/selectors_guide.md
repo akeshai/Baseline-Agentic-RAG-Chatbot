@@ -1,6 +1,6 @@
 # Selector Configurations Guide
 
-This guide explains how to manage page parsing rules, loading timeouts, and dynamic rendering selectors using [selectors.yaml](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/crawl/selectors.yaml).
+This guide explains how to manage page parsing rules, loading timeouts, and dynamic rendering selectors using [selectors.yaml](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/app/configs/selectors.yaml).
 
 The `PlaywrightScraper` matches incoming URLs against this YAML configuration to determine selectors for loading overlay checks, container extraction, and stabilization criteria.
 

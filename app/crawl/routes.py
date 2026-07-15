@@ -112,10 +112,9 @@ async def get_page_detail(
             bucket = parts[0]
             key = parts[1]
 
-            from app.configs.crawl import settings as crawl_settings
-            from app.storage.local import LocalObjectStorage
+            from app.storage import get_object_storage
 
-            storage = LocalObjectStorage(root_dir=crawl_settings.object_storage_root)
+            storage = get_object_storage()
             html_bytes = await storage.download_file(bucket, key)
             page.html_content = html_bytes.decode("utf-8")
         except Exception as e:

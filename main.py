@@ -4,12 +4,16 @@ from contextlib import asynccontextmanager
 from app.database import engine, Base
 from app.auth.routes import router as auth_router
 from app.crawl.routes import router as crawl_router
+from app.ingest import ingest_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Automatically create database tables using async connection context
     async with engine.begin() as conn:
+        if conn.dialect.name == "postgresql":
+            from sqlalchemy import text
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         await conn.run_sync(Base.metadata.create_all)
     yield
     # Dispose connections on shutdown
@@ -27,6 +31,7 @@ app = FastAPI(
 # Register routes
 app.include_router(auth_router)
 app.include_router(crawl_router)
+app.include_router(ingest_router)
 
 
 @app.get("/")
