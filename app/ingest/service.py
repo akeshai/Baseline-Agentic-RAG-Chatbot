@@ -329,7 +329,9 @@ class IngestionService:
                 # 3. Synchronize vector index chunks
                 if action_taken == "updated":
                     # Delete old chunks belonging to previous versions of this document
-                    await self.vector_store.delete_chunks_by_document(doc_id, db_session=db_session)
+                    await self.vector_store.delete_chunks_by_document(
+                        doc_id, db_session=db_session
+                    )
                     # Evict old FAQs from Redis
                     await self.faq_cache.evict_faqs(doc_id)
 
@@ -342,10 +344,14 @@ class IngestionService:
 
                 if chunks:
                     # Bulk embed and upload new chunks to the vector store adapter
-                    await self.vector_store.insert_chunks(version_rec_id, chunks, db_session=db_session)
+                    await self.vector_store.insert_chunks(
+                        version_rec_id, chunks, db_session=db_session
+                    )
 
                 # 4. Parse & extract FAQs from clean text to cache in Redis
-                faqs = await asyncio.to_thread(self._extract_faqs_from_text, text_content)
+                faqs = await asyncio.to_thread(
+                    self._extract_faqs_from_text, text_content
+                )
                 if faqs:
                     await self.faq_cache.cache_faqs(doc_id, faqs)
 

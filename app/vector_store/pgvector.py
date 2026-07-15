@@ -3,7 +3,6 @@ from typing import Any, Dict, List
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.configs.dbs import settings as db_settings
 from app.database import SessionLocal
 from app.ingest.models import DocumentChunk, DocumentVersion
 from app.vector_store.interface import BaseVectorStore
@@ -130,8 +129,7 @@ class PGVectorStore(BaseVectorStore):
                 )
                 result = await session.execute(stmt)
                 return [
-                    {"content": r[0], "distance": float(r[1])}
-                    for r in result.all()
+                    {"content": r[0], "distance": float(r[1])} for r in result.all()
                 ]
             else:
                 # Fallback implementation for SQLite (non-production testing)
@@ -148,9 +146,7 @@ class PGVectorStore(BaseVectorStore):
                     norm_a = sum(a * a for a in emb_raw) ** 0.5
                     norm_b = sum(b * b for b in query_vector) ** 0.5
                     similarity = (
-                        dot_product / (norm_a * norm_b)
-                        if norm_a and norm_b
-                        else 0.0
+                        dot_product / (norm_a * norm_b) if norm_a and norm_b else 0.0
                     )
                     distance = 1.0 - similarity
                     matches.append({"content": content, "distance": distance})
