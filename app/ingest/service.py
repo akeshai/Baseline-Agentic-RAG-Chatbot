@@ -3,7 +3,7 @@ import hashlib
 import json
 import logging
 import re
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 import redis
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession

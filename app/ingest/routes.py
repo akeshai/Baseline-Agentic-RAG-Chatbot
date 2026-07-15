@@ -1,17 +1,16 @@
 import asyncio
 import io
 import logging
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
 from app.auth.routes import get_current_user
 from app.database import get_db
-from app.crawl.repository import CrawlRepository
 from app.configs.crawl import settings as crawl_settings
 from app.storage import get_object_storage
-from app.ingest.schemas import TextIngestRequest, IngestResponse, DocumentMetadataResponse, IngestionStatusResponse
+from app.ingest.schemas import TextIngestRequest, IngestResponse, IngestionStatusResponse
 from app.ingest.service import IngestionService
 
 logger = logging.getLogger(__name__)

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from io import StringIO
-from typing import List, Dict, Union
+from typing import List, Dict
 
 import pandas as pd
-from bs4 import BeautifulSoup
 
 
 class HTMLTableParser:

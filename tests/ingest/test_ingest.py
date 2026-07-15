@@ -1,6 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi.testclient import TestClient
+from unittest.mock import patch
 from sqlalchemy import select
 
 from app.database import SessionLocal, engine, Base
@@ -8,7 +7,6 @@ from app.ingest.models import IngestedDocument, DocumentVersion, DocumentChunk
 from app.ingest.parser import HTMLTableParser
 from app.ingest.chunker import TokenAwareChunker
 from app.ingest.service import IngestionService
-from app.vector_store import PGVectorStore
 
 
 @pytest.fixture
@@ -88,7 +86,7 @@ async def test_ingestion_service_lifecycle(setup_db):
     """
     # Mock Redis to avoid network traffic
     with patch("app.ingest.service.FAQCache._cache_faqs_sync") as mock_redis_cache, \
-         patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict:
+         patch("app.ingest.service.FAQCache._evict_faqs_sync") as mock_redis_evict: # noqa
         
         service = IngestionService()
         identifier = "manual://tests/test_doc_lifecycle"
@@ -255,7 +253,6 @@ def test_ingest_metadata_route(client):
     assert post_resp.status_code == 201
 
     # 3. Create mock crawl directory and db page for task 999
-    import os
     import shutil
     import asyncio
     from pathlib import Path
