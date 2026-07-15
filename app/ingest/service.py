@@ -234,126 +234,136 @@ class IngestionService:
         """
         Coordinates document parsing, deduplication, chunking, embedding updates, and Q&A sync.
         All CPU-intensive tasks (hashing, BeautifulSoup parsing) are offloaded to worker threads.
+        Executes within a single transaction boundary, committing only when both DB metadata
+        and vector store insertions complete successfully.
         """
         # 1. Compute text payload SHA-256 in a non-blocking worker thread
         content_hash = await asyncio.to_thread(self._compute_hash, text_content)
 
-        # 2. Query document database using an isolated short-lived session
+        # 2. Query document database using an isolated session
         async with SessionLocal() as db_session:
-            stmt = select(IngestedDocument).where(
-                IngestedDocument.source_identifier == identifier
-            )
-            result = await db_session.execute(stmt)
-            doc = result.scalars().first()
+            try:
+                stmt = select(IngestedDocument).where(
+                    IngestedDocument.source_identifier == identifier
+                )
+                result = await db_session.execute(stmt)
+                doc = result.scalars().first()
 
-            if doc:
-                # Case A: Document already exists. Verify if content changed
-                if doc.current_hash == content_hash:
-                    logger.info(
-                        "Ingestion skipped for %s (hash matches latest)", identifier
+                if doc:
+                    # Case A: Document already exists. Verify if content changed
+                    if doc.current_hash == content_hash:
+                        logger.info(
+                            "Ingestion skipped for %s (hash matches latest)", identifier
+                        )
+                        return {
+                            "document_id": doc.id,
+                            "version": doc.current_version,
+                            "action": "skipped",
+                            "hash": content_hash,
+                        }
+
+                    # Case B: Content hash changed. Bump version and update
+                    old_version = doc.current_version
+                    new_version = old_version + 1
+
+                    # Update document meta
+                    doc.current_version = new_version
+                    doc.current_hash = content_hash
+                    doc.title = title or doc.title
+
+                    # Mark older versions as superseded
+                    await db_session.execute(
+                        update(DocumentVersion)
+                        .where(
+                            DocumentVersion.document_id == doc.id,
+                            DocumentVersion.status == "active",
+                        )
+                        .values(status="superseded")
                     )
-                    return {
-                        "document_id": doc.id,
-                        "version": doc.current_version,
-                        "action": "skipped",
-                        "hash": content_hash,
-                    }
 
-                # Case B: Content hash changed. Bump version and update
-                old_version = doc.current_version
-                new_version = old_version + 1
-
-                # Update document meta
-                doc.current_version = new_version
-                doc.current_hash = content_hash
-                doc.title = title or doc.title
-
-                # Mark older versions as superseded
-                await db_session.execute(
-                    update(DocumentVersion)
-                    .where(
-                        DocumentVersion.document_id == doc.id,
-                        DocumentVersion.status == "active",
+                    # Insert new version record
+                    new_ver_rec = DocumentVersion(
+                        document_id=doc.id,
+                        version=new_version,
+                        content_hash=content_hash,
+                        raw_storage_key=raw_storage_key,
+                        text_content=text_content,
+                        status="active",
                     )
-                    .values(status="superseded")
+                    db_session.add(new_ver_rec)
+                    await db_session.flush()
+
+                    doc_id = doc.id
+                    version_num = new_version
+                    version_rec_id = new_ver_rec.id
+                    action_taken = "updated"
+
+                else:
+                    # Case C: First time document is registered
+                    new_doc = IngestedDocument(
+                        source_type=source_type,
+                        source_identifier=identifier,
+                        title=title,
+                        current_version=1,
+                        current_hash=content_hash,
+                    )
+                    db_session.add(new_doc)
+                    await db_session.flush()
+
+                    new_ver_rec = DocumentVersion(
+                        document_id=new_doc.id,
+                        version=1,
+                        content_hash=content_hash,
+                        raw_storage_key=raw_storage_key,
+                        text_content=text_content,
+                        status="active",
+                    )
+                    db_session.add(new_ver_rec)
+                    await db_session.flush()
+
+                    doc_id = new_doc.id
+                    version_num = 1
+                    version_rec_id = new_ver_rec.id
+                    action_taken = "created"
+
+                # 3. Synchronize vector index chunks
+                if action_taken == "updated":
+                    # Delete old chunks belonging to previous versions of this document
+                    await self.vector_store.delete_chunks_by_document(doc_id, db_session=db_session)
+                    # Evict old FAQs from Redis
+                    await self.faq_cache.evict_faqs(doc_id)
+
+                # Generate chunk splits
+                chunks = await self.chunker.chunk_document(
+                    text_or_html=text_content,
+                    is_html=is_html,
+                    source_title=title or identifier,
                 )
 
-                # Insert new version record
-                new_ver_rec = DocumentVersion(
-                    document_id=doc.id,
-                    version=new_version,
-                    content_hash=content_hash,
-                    raw_storage_key=raw_storage_key,
-                    text_content=text_content,
-                    status="active",
-                )
-                db_session.add(new_ver_rec)
-                await db_session.flush()
+                if chunks:
+                    # Bulk embed and upload new chunks to the vector store adapter
+                    await self.vector_store.insert_chunks(version_rec_id, chunks, db_session=db_session)
 
-                doc_id = doc.id
-                version_num = new_version
-                version_rec_id = new_ver_rec.id
-                action_taken = "updated"
+                # 4. Parse & extract FAQs from clean text to cache in Redis
+                faqs = await asyncio.to_thread(self._extract_faqs_from_text, text_content)
+                if faqs:
+                    await self.faq_cache.cache_faqs(doc_id, faqs)
+
+                # Commit only when everything succeeds
                 await db_session.commit()
 
-            else:
-                # Case C: First time document is registered
-                new_doc = IngestedDocument(
-                    source_type=source_type,
-                    source_identifier=identifier,
-                    title=title,
-                    current_version=1,
-                    current_hash=content_hash,
-                )
-                db_session.add(new_doc)
-                await db_session.flush()
+                return {
+                    "document_id": doc_id,
+                    "version": version_num,
+                    "action": action_taken,
+                    "hash": content_hash,
+                }
 
-                new_ver_rec = DocumentVersion(
-                    document_id=new_doc.id,
-                    version=1,
-                    content_hash=content_hash,
-                    raw_storage_key=raw_storage_key,
-                    text_content=text_content,
-                    status="active",
-                )
-                db_session.add(new_ver_rec)
-                await db_session.flush()
-
-                doc_id = new_doc.id
-                version_num = 1
-                version_rec_id = new_ver_rec.id
-                action_taken = "created"
-                await db_session.commit()
-
-        # 3. Synchronize vector index chunks
-        if action_taken == "updated":
-            # Delete old chunks belonging to previous versions of this document
-            await self.vector_store.delete_chunks_by_document(doc_id)
-            # Evict old FAQs from Redis
-            await self.faq_cache.evict_faqs(doc_id)
-
-        # Generate chunk splits
-        chunks = await self.chunker.chunk_document(
-            text_or_html=text_content,
-            is_html=is_html,
-            source_title=title or identifier,
-        )
-
-        if chunks:
-            # Bulk embed and upload new chunks to the vector store adapter
-            await self.vector_store.insert_chunks(version_rec_id, chunks)
-
-        # 4. Parse & extract FAQs from clean text to cache in Redis
-        faqs = await asyncio.to_thread(self._extract_faqs_from_text, text_content)
-        if faqs:
-            await self.faq_cache.cache_faqs(doc_id, faqs)
-
-        return {
-            "document_id": doc_id,
-            "version": version_num,
-            "action": action_taken,
-            "hash": content_hash,
-        }
+            except Exception as e:
+                # Rollback relational database state if any stage (including vector embedding) fails
+                await db_session.rollback()
+                logger.error("Failed to ingest content: %s", e)
+                raise e
 
     def _compute_hash(self, text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()

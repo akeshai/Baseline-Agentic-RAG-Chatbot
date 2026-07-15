@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class BaseVectorStore(ABC):
@@ -14,9 +15,11 @@ class BaseVectorStore(ABC):
         self,
         version_id: int,
         chunks: List[Dict[str, Any]],
+        db_session: AsyncSession | None = None,
     ) -> None:
         """
         Embeds chunk contents and writes chunks + embeddings to the index.
+        Reuses db_session if provided to participate in external transactions.
         """
         pass
 
@@ -24,9 +27,11 @@ class BaseVectorStore(ABC):
     async def delete_chunks_by_document(
         self,
         document_id: int,
+        db_session: AsyncSession | None = None,
     ) -> None:
         """
         Clears all stored chunks/embeddings linked to any version of a document.
+        Reuses db_session if provided to participate in external transactions.
         """
         pass
 

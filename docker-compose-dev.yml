@@ -62,24 +62,15 @@ services:
     restart: always
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
       - DB_TYPE=postgresql
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME=${DB_NAME:-chatbot}
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-postgres}
-      - MODE=DEBUG
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your-super-secret-key-change-in-production}
-      - RAW_STORAGE_TYPE=${RAW_STORAGE_TYPE:-object}
-      - OBJECT_STORAGE_ROOT=/workspace/storage_buckets
-      - OBJECT_STORAGE_PROVIDER=${OBJECT_STORAGE_PROVIDER:-minio}
       - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
-      - MINIO_PORT=9000
       - REDIS_URL=redis://redis:6379/0
-      - VECTOR_DIM=${VECTOR_DIM:-1024}
+      - OBJECT_STORAGE_ROOT=/workspace/storage_buckets
     depends_on:
       db:
         condition: service_healthy

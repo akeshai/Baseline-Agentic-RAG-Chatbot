@@ -38,7 +38,8 @@ def get_scraper_patch():
 
         class CustomPlaywrightScraper(PlaywrightScraper):
             def __init__(self, *args, **kwargs):
-                kwargs["headless"] = False
+                # Force headless=True inside container (no display server), otherwise False
+                kwargs["headless"] = True if os.path.exists("/.dockerenv") else False
                 super().__init__(*args, **kwargs)
 
         return patch(

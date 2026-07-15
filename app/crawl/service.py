@@ -104,6 +104,10 @@ class CrawlService:
             mode = os.getenv("MODE", "PRODUCTION").strip("'\" ").upper()
             is_headless = False if mode == "DEBUG" else True
 
+            # Force headless=True inside a Docker container since there is no GUI display
+            if os.path.exists("/.dockerenv"):
+                is_headless = True
+
             try:
                 # Initialize Playwright browser dynamically within context manager
                 async with PlaywrightScraper(headless=is_headless) as scraper:

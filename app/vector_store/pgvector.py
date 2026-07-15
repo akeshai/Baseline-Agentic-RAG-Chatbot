@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.dbs import settings as db_settings
 from app.database import SessionLocal
@@ -22,9 +23,11 @@ class PGVectorStore(BaseVectorStore):
         self,
         version_id: int,
         chunks: List[Dict[str, Any]],
+        db_session: AsyncSession | None = None,
     ) -> None:
         """
         Generates embeddings and bulk inserts chunks linked to a document version.
+        Reuses db_session if provided to avoid nested transaction locking on SQLite.
         """
         if not chunks:
             return
@@ -32,45 +35,73 @@ class PGVectorStore(BaseVectorStore):
         contents = [chunk["content"] for chunk in chunks]
         vectors = await self.embedding_adapter.embed_documents(contents)
 
-        async with SessionLocal() as session:
+        if len(vectors) != len(chunks):
+            raise ValueError(
+                f"Embedding API returned mismatching number of vectors: "
+                f"expected {len(chunks)}, got {len(vectors)}"
+            )
+
+        if db_session is not None:
+            # Use shared transaction session
             for idx, chunk in enumerate(chunks):
-                # Fallback to zero vector if embedding generation returned fewer results
-                vector = (
-                    vectors[idx]
-                    if idx < len(vectors)
-                    else [0.0] * db_settings.vector_dim
-                )
                 db_chunk = DocumentChunk(
                     version_id=version_id,
                     chunk_index=idx,
                     content=chunk["content"],
-                    embedding=vector,
+                    embedding=vectors[idx],
                 )
-                session.add(db_chunk)
-            await session.commit()
+                db_session.add(db_chunk)
+            await db_session.flush()
+        else:
+            # Create isolated transaction session
+            async with SessionLocal() as session:
+                for idx, chunk in enumerate(chunks):
+                    db_chunk = DocumentChunk(
+                        version_id=version_id,
+                        chunk_index=idx,
+                        content=chunk["content"],
+                        embedding=vectors[idx],
+                    )
+                    session.add(db_chunk)
+                await session.commit()
 
     async def delete_chunks_by_document(
         self,
         document_id: int,
+        db_session: AsyncSession | None = None,
     ) -> None:
         """
         Evicts all chunks associated with any version of a document.
+        Reuses db_session if provided to participate in external transactions.
         """
-        async with SessionLocal() as session:
-            # 1. Fetch version IDs for the target document
+        if db_session is not None:
+            # Fetch version IDs
             version_stmt = select(DocumentVersion.id).where(
                 DocumentVersion.document_id == document_id
             )
-            version_result = await session.execute(version_stmt)
+            version_result = await db_session.execute(version_stmt)
             version_ids = version_result.scalars().all()
 
             if version_ids:
-                # 2. Delete chunks belonging to these versions
+                # Delete chunks
                 del_stmt = delete(DocumentChunk).where(
                     DocumentChunk.version_id.in_(version_ids)
                 )
-                await session.execute(del_stmt)
-                await session.commit()
+                await db_session.execute(del_stmt)
+        else:
+            async with SessionLocal() as session:
+                version_stmt = select(DocumentVersion.id).where(
+                    DocumentVersion.document_id == document_id
+                )
+                version_result = await session.execute(version_stmt)
+                version_ids = version_result.scalars().all()
+
+                if version_ids:
+                    del_stmt = delete(DocumentChunk).where(
+                        DocumentChunk.version_id.in_(version_ids)
+                    )
+                    await session.execute(del_stmt)
+                    await session.commit()
 
     async def query_similarity(
         self,
@@ -88,23 +119,41 @@ class PGVectorStore(BaseVectorStore):
             if dialect == "postgresql":
                 # Compile-safe Cosine Distance operator
                 stmt = (
-                    select(DocumentChunk)
-                    .order_by(DocumentChunk.embedding.op("<=>")(query_vector))
+                    select(
+                        DocumentChunk.content,
+                        DocumentChunk.embedding.cosine_distance(query_vector).label(
+                            "distance"
+                        ),
+                    )
+                    .order_by("distance")
                     .limit(limit)
                 )
+                result = await session.execute(stmt)
+                return [
+                    {"content": r[0], "distance": float(r[1])}
+                    for r in result.all()
+                ]
             else:
-                # SQLite fallback: returns matches (simulates database without vector extension)
-                stmt = select(DocumentChunk).limit(limit)
+                # Fallback implementation for SQLite (non-production testing)
+                stmt = select(DocumentChunk.content, DocumentChunk.embedding)
+                result = await session.execute(stmt)
+                rows = result.all()
 
-            result = await session.execute(stmt)
-            chunks = result.scalars().all()
+                matches = []
+                for content, emb_raw in rows:
+                    if not emb_raw or len(emb_raw) != len(query_vector):
+                        continue
+                    # Compute cosine similarity manually for testing compatibility
+                    dot_product = sum(a * b for a, b in zip(emb_raw, query_vector))
+                    norm_a = sum(a * a for a in emb_raw) ** 0.5
+                    norm_b = sum(b * b for b in query_vector) ** 0.5
+                    similarity = (
+                        dot_product / (norm_a * norm_b)
+                        if norm_a and norm_b
+                        else 0.0
+                    )
+                    distance = 1.0 - similarity
+                    matches.append({"content": content, "distance": distance})
 
-            return [
-                {
-                    "id": c.id,
-                    "version_id": c.version_id,
-                    "chunk_index": c.chunk_index,
-                    "content": c.content,
-                }
-                for c in chunks
-            ]
+                matches.sort(key=lambda x: x["distance"])
+                return matches[:limit]

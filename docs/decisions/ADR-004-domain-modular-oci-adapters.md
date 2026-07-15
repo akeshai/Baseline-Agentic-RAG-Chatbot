@@ -38,10 +38,18 @@ We selected **Option 2: Domain-Modular Adapters with Constructor Injection**.
 * By default, an autouse session fixture `mock_oci_client` intercepting SDK calls permits fast offline testing.
 * Integration tests targeting live OCI endpoints (`tests/test_oci_embeddings.py` and `tests/test_oci_llm.py`) are skipped unless the environment variable `MODE` is set to `"DEBUG"`. These tests carry the `@pytest.mark.real_oci` marker which signals `conftest.py` to bypass global mock patching.
 
+### 5. Transaction Boundary Sharing
+* The abstract `BaseVectorStore` and `PGVectorStore` accept an optional `db_session` parameter.
+* This allows the ingestion orchestrator (`IngestionService`) to pass its active transaction session to the vector store.
+* Both relational database operations (e.g., updating document version tracking metadata) and vector store operations (e.g., bulk-inserting chunk embeddings) are executed inside a single, unified database transaction.
+* If any part of the process fails (such as an OCI service exception or length mismatch in the generated embeddings), the database transaction is rolled back completely. This prevents partial successes where database records are marked as `ingested` but vector search chunks are missing.
+* Zero-vector fallback checks were replaced with a strict length assertion: if the embedding API yields a different number of vectors than input chunks, a `ValueError` is raised, prompting an immediate database rollback.
+
 ## Consequences
 * **Pros**:
   - Easily swap OCI for alternate providers (OpenAI, HuggingFace, etc.) in the future without modifying core business code or database classes.
   - Excellent search similarity metrics by adhering to Cohere's asymmetric embedding inputs.
   - Solid developer feedback loops with both offline mock testing and live debugging.
+  - **All-or-Nothing transactional integrity**: Eliminates state desynchronization between PostgreSQL metadata records and vector search chunks in the event of third-party API or network failures.
 * **Cons**:
   - Slight initial setup overhead due to interfaces and constructor routing.
