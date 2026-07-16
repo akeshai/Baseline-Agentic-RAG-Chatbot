@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     vector_dim: int = 384
 
+    # Vector store configuration
+    vector_store_type: str = "pgvector"
+    milvus_uri: str = "http://localhost:19530"
+    milvus_collection: str = "chatbot_chunks"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",

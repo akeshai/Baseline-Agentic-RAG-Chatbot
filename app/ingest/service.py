@@ -10,6 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.configs.dbs import settings as db_settings
+from app.configs.yaml_loader import categories_config
 from app.database import SessionLocal
 from app.ingest.chunker import TokenAwareChunker
 from app.ingest.models import DocumentVersion, IngestedDocument
@@ -47,11 +48,42 @@ class FAQCache:
             logger.warning("Redis FAQ caching failed (graceful bypass): %s", e)
 
     def _cache_faqs_sync(self, doc_id: int, faqs: List[Dict[str, str]]) -> None:
-        key = f"doc:{doc_id}:faqs"
+        doc_key = f"doc:{doc_id}:faqs"
+        doc_keys_set = f"doc:{doc_id}:faq_keys"
+        
+        # Evict old ones first to prevent dead keys
+        self._evict_faqs_sync(doc_id)
+        
         pipe = self.client.pipeline()
-        pipe.delete(key)
         for faq in faqs:
-            pipe.rpush(key, json.dumps(faq))
+            q = faq.get("question", "").strip()
+            a = faq.get("answer", "").strip()
+            cat = faq.get("category", "others").strip()
+            if not q or not a:
+                continue
+            
+            slug = re.sub(r'[^a-z0-9]+', '_', q.lower()).strip('_')
+            faq_key = f"faq:{slug}"
+            
+            # Save individual FAQ JSON
+            faq_data = {
+                "question": q,
+                "answer": a,
+                "category": cat,
+                "doc_id": doc_id
+            }
+            pipe.set(faq_key, json.dumps(faq_data))
+            
+            # Index under category set
+            category_set = f"category:{cat}:faq_keys"
+            pipe.sadd(category_set, faq_key)
+            
+            # Index under doc keys set
+            pipe.sadd(doc_keys_set, faq_key)
+            
+            # Fallback legacy list
+            pipe.rpush(doc_key, json.dumps(faq_data))
+            
         pipe.execute()
 
     async def evict_faqs(self, doc_id: int) -> None:
@@ -62,8 +94,29 @@ class FAQCache:
             logger.warning("Redis FAQ eviction failed (graceful bypass): %s", e)
 
     def _evict_faqs_sync(self, doc_id: int) -> None:
-        key = f"doc:{doc_id}:faqs"
-        self.client.delete(key)
+        doc_key = f"doc:{doc_id}:faqs"
+        doc_keys_set = f"doc:{doc_id}:faq_keys"
+        
+        # Retrieve all individual FAQ keys matching this doc
+        faq_keys = self.client.smembers(doc_keys_set)
+        
+        if faq_keys:
+            pipe = self.client.pipeline()
+            # For each key, get it to clean up the category set it belongs to
+            for key in faq_keys:
+                faq_data_str = self.client.get(key)
+                if faq_data_str:
+                    try:
+                        faq_data = json.loads(faq_data_str)
+                        cat = faq_data.get("category", "others")
+                        pipe.srem(f"category:{cat}:faq_keys", key)
+                    except Exception:
+                        pass
+                pipe.delete(key)
+            pipe.execute()
+            
+        self.client.delete(doc_key)
+        self.client.delete(doc_keys_set)
 
 
 class IngestionService:
@@ -80,6 +133,106 @@ class IngestionService:
         self.vector_store = vector_store or PGVectorStore()
         self.chunker = chunker or TokenAwareChunker()
         self.faq_cache = FAQCache(redis_url=db_settings.redis_url)
+        self.categories = categories_config or []
+        self.tag_to_category = self.build_tag_to_category_mapping()
+
+    def build_tag_to_category_mapping(self) -> Dict[str, str]:
+        """
+        Dynamically compiles a tag-to-category mapping from the loaded categories configuration.
+        Any new categories or keywords added to the config will automatically be mapped.
+        """
+        mapping = {}
+        for cat in self.categories:
+            cat_id = cat["id"]
+            # Map category ID and variants
+            mapping[cat_id] = cat_id
+            mapping[cat_id.replace("_", "-")] = cat_id
+            mapping[cat_id.replace("_", " ")] = cat_id
+            
+            # Map category name and variants
+            name = cat.get("name", "").lower()
+            if name:
+                mapping[name] = cat_id
+                mapping[name.replace(" ", "-")] = cat_id
+                mapping[name.replace(" ", "_")] = cat_id
+                # Singular/plural variants
+                if name.endswith("s"):
+                    mapping[name[:-1]] = cat_id
+                else:
+                    mapping[name + "s"] = cat_id
+
+            # Map from keywords
+            keywords = cat.get("keywords", {})
+            for kw in keywords.get("primary", []) + keywords.get("secondary", []):
+                kw_lower = kw.lower().strip()
+                if not kw_lower:
+                    continue
+                mapping[kw_lower] = cat_id
+                if " " in kw_lower:
+                    mapping[kw_lower.replace(" ", "-")] = cat_id
+                    mapping[kw_lower.replace(" ", "_")] = cat_id
+                # Handle singular/plural variant
+                if kw_lower.endswith("s"):
+                    mapping[kw_lower[:-1]] = cat_id
+                else:
+                    mapping[kw_lower + "s"] = cat_id
+                    
+        return mapping
+
+    def extract_tags_from_url(self, url: str) -> List[str]:
+        """Generate tags from all URL path segments."""
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        path = parsed.path.strip("/")
+        if not path:
+            return ["home"]
+
+        # Split by / to get individual path segments
+        segments = path.split("/")
+        tags = []
+        for segment in segments:
+            if segment:
+                tags.append(segment.lower())
+        return tags
+
+    def categorize_faq(self, tags: List[str], question: str, answer: str) -> str:
+        """
+        Hybrid categorization strategy:
+        1. Base score derived from URL segments (tags).
+        2. Content-based keyword density scoring (from primary and secondary keywords).
+        """
+        scores = {cat["id"]: 0 for cat in self.categories}
+        
+        # 1. Score based on URL path tags
+        for tag in tags:
+            matched_cat = self.tag_to_category.get(tag)
+            if matched_cat and matched_cat in scores:
+                scores[matched_cat] += 10  # High weight for URL segment match
+                
+        # 2. Score based on content keywords
+        text = (question + " " + answer).lower()
+        for cat in self.categories:
+            cat_id = cat["id"]
+            keywords = cat.get("keywords", {})
+            # Check primary keywords (weight 2)
+            for kw in keywords.get("primary", []):
+                if kw.lower() in text:
+                    scores[cat_id] += 2
+                    
+            # Check secondary keywords (weight 1)
+            for kw in keywords.get("secondary", []):
+                if kw.lower() in text:
+                    scores[cat_id] += 1
+                    
+        # 3. Select category with highest score
+        max_score = 0
+        best_category = "others"
+        for cat_id, score in scores.items():
+            if score > max_score:
+                max_score = score
+                best_category = cat_id
+                
+        return best_category
 
     async def get_metadata(
         self,
@@ -351,7 +504,7 @@ class IngestionService:
 
                 # 4. Parse & extract FAQs from clean text to cache in Redis
                 faqs = await asyncio.to_thread(
-                    self._extract_faqs_from_text, text_content
+                    self._extract_faqs_from_text, text_content, identifier
                 )
                 if faqs:
                     await self.faq_cache.cache_faqs(doc_id, faqs)
@@ -375,14 +528,83 @@ class IngestionService:
     def _compute_hash(self, text: str) -> str:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-    def _extract_faqs_from_text(self, text: str) -> List[Dict[str, str]]:
+    def _extract_faqs_from_text(self, text: str, url: str = "") -> List[Dict[str, str]]:
         """
-        Regex-based parser looking for standard Q&A pairs (e.g. Q: Question, A: Answer).
+        Extracts Q&A pairs.
+        Supports HTML accordion layouts (AccordionItem Heading/Panel tags) as well as
+        standard text-based Q/Question & A/Answer matching. All extracted FAQs
+        are automatically categorized using a hybrid URL tag + keyword density score.
         """
         if not text:
             return []
 
-        # Matches Q/Question: followed by A/Answer: lines with optional leading whitespace
+        # 1. Try Accordion Item Extraction if HTML tags are present
+        if "<" in text and ">" in text:
+            try:
+                from bs4 import BeautifulSoup
+                import html2text
+                soup = BeautifulSoup(text, "html.parser")
+                faq_container = soup.find(id="product-faqs")
+                accordion_items = []
+                if faq_container:
+                    accordion_items = faq_container.find_all(
+                        "div", attrs={"data-accordion-component": "AccordionItem"}
+                    )
+                if accordion_items:
+                    html_converter = html2text.HTML2Text()
+                    html_converter.ignore_images = True
+                    html_converter.ignore_emphasis = True
+                    html_converter.ignore_links = True
+                    html_converter.body_width = 0
+
+                    faqs = []
+                    tags = self.extract_tags_from_url(url)
+                    for item in accordion_items:
+                        heading_div = item.find(
+                            "div",
+                            attrs={"data-accordion-component": "AccordionItemHeading"},
+                        )
+                        if not heading_div:
+                            continue
+                        button = heading_div.find("div", class_="accordion__button")
+                        if not button:
+                            continue
+                        question_text = button.get_text(strip=True)
+
+                        panel = item.find(
+                            "div", attrs={"data-accordion-component": "AccordionItemPanel"}
+                        )
+                        if not panel:
+                            continue
+                        
+                        # Extract panel content HTML and convert to clean markdown
+                        answer_html = "".join([str(child) for child in panel.contents]).strip()
+                        answer_markdown = html_converter.handle(answer_html).strip()
+
+                        # Categorize the FAQ
+                        category = self.categorize_faq(tags, question_text, answer_markdown)
+                        faqs.append({
+                            "question": question_text,
+                            "answer": answer_markdown,
+                            "category": category
+                        })
+                    if faqs:
+                        return faqs
+            except Exception as e:
+                logger.warning("Failed to extract accordion FAQs from HTML: %s", e)
+
+        # 2. Fallback to standard text regex parser (strip HTML tags first if present)
+        if "<" in text and ">" in text:
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(text, "html.parser")
+                # Decompose non-content tags
+                for tag in soup(["script", "style", "head", "title", "meta"]):
+                    tag.decompose()
+                text = soup.get_text(separator="\n")
+            except Exception as e:
+                logger.warning("Failed to parse HTML for FAQ extraction: %s", e)
+
         pattern = re.compile(
             r"\s*(?:Q|Question|Qn):\s*(.*?)\s*\n+\s*(?:A|Answer):\s*(.*?)(?=\n+\s*(?:Q|Question|Qn):|\Z)",
             re.IGNORECASE | re.DOTALL,
@@ -390,9 +612,15 @@ class IngestionService:
         matches = pattern.findall(text)
 
         faqs = []
+        tags = self.extract_tags_from_url(url)
         for q, a in matches:
             q_clean = re.sub(r"\s+", " ", q).strip()
             a_clean = re.sub(r"\s+", " ", a).strip()
             if q_clean and a_clean:
-                faqs.append({"question": q_clean, "answer": a_clean})
+                category = self.categorize_faq(tags, q_clean, a_clean)
+                faqs.append({
+                    "question": q_clean,
+                    "answer": a_clean,
+                    "category": category
+                })
         return faqs

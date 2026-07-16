@@ -8,6 +8,7 @@ from app.crawl.routes import router as crawl_router
 from app.database import Base, engine
 from app.ingest import ingest_router
 from app.search.routes import router as search_router
+from app.faq.routes import router as faq_router
 import logging as logger
 
 
@@ -72,6 +73,7 @@ app.include_router(auth_router)
 app.include_router(crawl_router)
 app.include_router(ingest_router)
 app.include_router(search_router)
+app.include_router(faq_router)
 
 
 @app.get("/")

@@ -1,0 +1,203 @@
+categories:
+  - id: special_current_account
+    description: >
+      Queries related to DCB Special Current Account including account opening,
+      eligibility, minimum balance, charges, benefits, features, documents,
+      and account maintenance.
+    keywords:
+      primary:
+        - dcb special current account
+        - special current account
+      secondary:
+        - special current
+        - current account benefits
+        - current account eligibility
+        - minimum balance
+        - account opening
+        - current account charges
+
+  - id: special_savings_account
+    description: >
+      Queries related to DCB Special Savings Account including interest,
+      eligibility, minimum balance, benefits, account opening, and charges.
+    keywords:
+      primary:
+        - dcb special savings account
+        - special savings account
+      secondary:
+        - special savings
+        - savings account benefits
+        - savings account interest
+        - minimum balance
+        - account opening
+        - account charges
+
+  - id: fixed_deposit_interest_rate
+    description: >
+      Queries specifically about DCB Fixed Deposit interest rates,
+      tenure-wise rates, senior citizen rates, and tax saver FD rates.
+    keywords:
+      primary:
+        - fixed deposit interest rate
+        - fd interest rate
+        - fd interest rates
+        - dcb fixed deposit interest rate
+        - dcb fd interest rate
+      secondary:
+        - interest rate
+        - deposit rates
+        - fd rates
+        - senior citizen fd rate
+        - tax saver fd rate
+        - tenure wise interest
+
+  - id: fixed_deposit
+    description: >
+      Queries related to DCB Fixed Deposits including booking,
+      renewal, premature closure, maturity, nomination,
+      tax saver FD, and senior citizen FD.
+    keywords:
+      primary:
+        - fixed deposit
+        - dcb fixed deposit
+        - fd
+        - dcb fd
+      secondary:
+        - term deposit
+        - fd maturity
+        - renew fd
+        - premature closure
+        - tax saver fd
+        - senior citizen fd
+
+  - id: niyo_savings_account
+    description: >
+      Queries related to DCB Niyo Savings Account including
+      zero forex markup, Niyo Global card, international
+      usage, and account benefits.
+    keywords:
+      primary:
+        - dcb niyo savings account
+        - niyo savings account
+        - niyo global
+        - niyo card
+      secondary:
+        - dcb niyo
+        - zero forex
+        - forex markup
+        - international transactions
+        - travel card
+
+  - id: payless_platinum_card
+    description: >
+      Queries related to DCB Payless Platinum Credit Card
+      including rewards, eligibility, joining fee,
+      annual fee, credit limit, and card benefits.
+    keywords:
+      primary:
+        - dcb payless platinum card
+        - payless platinum card
+        - payless credit card
+      secondary:
+        - dcb payless
+        - platinum card
+        - credit card benefits
+        - credit limit
+        - reward points
+
+  - id: gold_loan
+    description: >
+      Queries related to DCB Gold Loan including eligibility,
+      interest rates, loan amount, gold valuation,
+      repayment, and required documents.
+    keywords:
+      primary:
+        - dcb gold loan
+        - gold loan
+        - loan against gold
+      secondary:
+        - gold valuation
+        - gold jewellery
+        - gold ornaments
+        - per gram rate
+        - gold loan interest
+
+  - id: home_loan
+    description: >
+      Queries related to DCB Home Loan including eligibility,
+      interest rates, EMI, balance transfer,
+      processing fees, and documentation.
+    keywords:
+      primary:
+        - dcb home loan
+        - home loan
+        - housing loan
+      secondary:
+        - home loan interest
+        - property loan
+        - housing finance
+        - emi
+        - balance transfer
+
+  - id: remit
+    description: >
+      Queries related to DCB Remit including outward remittance,
+      international money transfer, exchange rates,
+      forex services, and transaction process.
+    keywords:
+      primary:
+        - dcb remit
+        - dcbremit
+        - international transfer
+        - outward remittance
+      secondary:
+        - send money abroad
+        - wire transfer
+        - forex
+        - exchange rate
+        - remittance
+
+  - id: business_saver_account
+    description: >
+      Queries related to DCB Business Saver Account including
+      eligibility, benefits, interest, minimum balance,
+      charges, and account opening.
+    keywords:
+      primary:
+        - dcb business saver account
+        - business saver account
+      secondary:
+        - business saver
+        - business savings
+        - business account
+        - minimum balance
+        - business account charges
+
+  - id: others
+    description: >
+      General DCB Bank queries including customer support,
+      branch and ATM locator, IFSC, internet banking,
+      mobile banking, debit cards, cheque books,
+      account services, and banking products not covered
+      by other categories.
+    keywords:
+      primary:
+        - customer care
+        - branch
+        - atm
+        - ifsc
+        - internet banking
+        - mobile banking
+      secondary:
+        - branch locator
+        - atm locator
+        - debit card
+        - cheque book
+        - account statement
+        - car loan
+        - education loan
+        - tractor loan
+        - agri loan
+        - personal loan
+        - help
+        - contact

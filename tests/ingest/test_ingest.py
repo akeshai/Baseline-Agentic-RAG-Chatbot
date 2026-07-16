@@ -192,7 +192,7 @@ async def test_ingestion_service_lifecycle(setup_db):
 
 def test_faq_extraction():
     """
-    Verifies regex FAQ extractor parsing.
+    Verifies regex FAQ extractor parsing and hybrid URL/keyword categorization.
     """
     service = IngestionService()
     text = """
@@ -203,12 +203,47 @@ def test_faq_extraction():
     Q: Is there an age limit?
     A: Yes, min 18 years.
     """
-    faqs = service._extract_faqs_from_text(text)
+    # Test standard text FAQ extraction with url categorization matching "others"
+    faqs = service._extract_faqs_from_text(text, url="https://www.dcb.bank.in/customer-support")
     assert len(faqs) == 2
     assert faqs[0]["question"] == "How do I apply?"
     assert faqs[0]["answer"] == "Simply click on the apply now button."
+    assert faqs[0]["category"] == "others"
     assert faqs[1]["question"] == "Is there an age limit?"
     assert faqs[1]["answer"] == "Yes, min 18 years."
+    assert faqs[1]["category"] == "others"
+
+    # Test HTML parsing fallback for FAQ extraction with category mapping (e.g. gold loan)
+    html_text = """
+    <div>
+        <p><strong>Question:</strong> What are gold loan interest rates?</p>
+        <p><strong>Answer:</strong> Our interest rates start from 9.5% p.a. on gold ornaments.</p>
+    </div>
+    """
+    html_faqs = service._extract_faqs_from_text(html_text, url="https://www.dcb.bank.in/loans/gold-loan")
+    assert len(html_faqs) == 1
+    assert html_faqs[0]["question"] == "What are gold loan interest rates?"
+    assert html_faqs[0]["answer"] == "Our interest rates start from 9.5% p.a. on gold ornaments."
+    assert html_faqs[0]["category"] == "gold_loan"
+
+    # Test Accordion HTML parser logic
+    accordion_html = """
+    <section id="product-faqs">
+        <div data-accordion-component="AccordionItem">
+            <div data-accordion-component="AccordionItemHeading">
+                <div class="accordion__button">What is the tenure for booking a fixed deposit?</div>
+            </div>
+            <div data-accordion-component="AccordionItemPanel">
+                <p>You can choose any tenure from 7 days to 120 months to book a DCB FD.</p>
+            </div>
+        </div>
+    </section>
+    """
+    accordion_faqs = service._extract_faqs_from_text(accordion_html, url="https://www.dcb.bank.in/fd-rates")
+    assert len(accordion_faqs) == 1
+    assert accordion_faqs[0]["question"] == "What is the tenure for booking a fixed deposit?"
+    assert "7 days to 120 months" in accordion_faqs[0]["answer"]
+    assert accordion_faqs[0]["category"] == "fixed_deposit_interest_rate"
 
 
 def test_parsing_real_html_tables():
