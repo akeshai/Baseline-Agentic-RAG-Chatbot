@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 import tiktoken
 from bs4 import BeautifulSoup
+import html2text
 
 from app.configs.ingest import settings as ingest_settings
 from app.ingest.parser import HTMLTableParser
@@ -22,7 +23,7 @@ class TokenAwareChunker:
         self,
         chunk_size: int = 400,
         chunk_overlap: int = 50,
-        encoding_name: str = "cl100k_base",
+        encoding_name: str = "o200k_harmony",
     ):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -30,6 +31,7 @@ class TokenAwareChunker:
         self.table_parser = HTMLTableParser()
         # Read targeted container selector from config settings
         self.target_html_selector = ingest_settings.target_html_selector
+        self.config = getattr(ingest_settings, "config", {})
 
     async def chunk_document(
         self,
@@ -82,20 +84,74 @@ class TokenAwareChunker:
     ) -> Tuple[str, List[Dict[str, Any]]]:
         soup = BeautifulSoup(html_content, "lxml")
 
-        # If target CSS selector is configured, isolate only the targeted container content
-        if self.target_html_selector:
-            target_el = soup.select_one(self.target_html_selector)
-            if target_el:
-                soup = BeautifulSoup(str(target_el), "lxml")
-            else:
-                logger.warning(
-                    "Target HTML selector '%s' not found in document. Falling back to parsing whole page content.",
-                    self.target_html_selector,
-                )
+        # 1. Prune Excluded elements globally first
+        exclude = self.config.get("exclude", {})
+        for tag in exclude.get("tags", []):
+            for el in soup.find_all(tag):
+                el.decompose()
+        
+        # Substring regex matching for classes to handle Next.js CSS Modules
+        for cls in exclude.get("classes", []):
+            pattern = re.compile(re.escape(cls), re.IGNORECASE)
+            for el in soup.find_all(class_=pattern):
+                el.decompose()
+                
+        # Substring regex matching for IDs
+        for eid in exclude.get("ids", []):
+            pattern = re.compile(re.escape(eid), re.IGNORECASE)
+            for el in soup.find_all(id=pattern):
+                el.decompose()
 
+        # 2. Find Root Container
+        root_selectors = self.config.get("root_selectors", [])
+        if not root_selectors and self.target_html_selector:
+            root_selectors = [self.target_html_selector]
+
+        root_el = None
+        for sel in root_selectors:
+            match = soup.select_one(sel)
+            if match:
+                root_el = match
+                break
+        if root_el:
+            soup = BeautifulSoup(str(root_el), "lxml")
+
+        # 3. Apply Inclusions (strategies: first_match / all_matches)
+        include = self.config.get("include", {})
+        strategy = include.get("strategy", "first_match")
+        include_selectors = include.get("selectors", [])
+
+        if include_selectors:
+            if strategy == "first_match":
+                included_el = None
+                for sel in include_selectors:
+                    match = soup.select_one(sel)
+                    if match:
+                        included_el = match
+                        break
+                if included_el:
+                    soup = BeautifulSoup(str(included_el), "lxml")
+            elif strategy == "all_matches":
+                matches = []
+                for sel in include_selectors:
+                    found = soup.select(sel)
+                    if found:
+                        matches.extend(found)
+                if matches:
+                    combined = "".join(str(m) for m in matches)
+                    soup = BeautifulSoup(combined, "lxml")
+
+        # Prune final DOM one more time to strip nested matching exclusions
+        for tag in exclude.get("tags", []):
+            for el in soup.find_all(tag):
+                el.decompose()
+        for cls in exclude.get("classes", []):
+            pattern = re.compile(re.escape(cls), re.IGNORECASE)
+            for el in soup.find_all(class_=pattern):
+                el.decompose()
+
+        # Proceed with normal Table Extraction using base class code
         table_chunks: List[Dict[str, Any]] = []
-
-        # Determine table titles from surrounding contexts
         title_prefix = f"Table from: {source_title} | " if source_title else ""
 
         table_tags = soup.find_all("table")
@@ -107,30 +163,38 @@ class TokenAwareChunker:
                     continue
 
                 table_title = self._infer_table_title(table_tag, i)
-                context_str = f"{title_prefix}Table: {table_title}"
+                subtitle = df.attrs.get("table_subtitle")
+                subtitle_str = f" - {subtitle}" if subtitle else ""
+                context_str = f"{title_prefix}Table: {table_title}{subtitle_str}"
 
-                # 1. Serialize row-by-row for high-density semantic search
+                # Serialize row-by-row as a mini markdown table snippet
                 records = self.table_parser.dataframe_to_records(df)
                 for row_idx, row in enumerate(records):
-                    # Format as: ColumnA: ValueA | ColumnB: ValueB
-                    row_details = " | ".join(
-                        f"{col}: {val}" for col, val in row.items() if pd_not_null(val)
-                    )
-                    content = f"{context_str}\nRow {row_idx + 1}: {row_details}"
+                    # Filter out empty/null values for this specific row
+                    active_cols = [col for col, val in row.items() if pd_not_null(val)]
+                    active_vals = [str(row[col]).strip() for col in active_cols]
 
-                    table_chunks.append(
-                        {
-                            "content": content,
-                            "metadata": {
-                                "type": "table_row",
-                                "table_index": i,
-                                "row_index": row_idx,
-                                "table_title": table_title,
-                            },
-                        }
-                    )
+                    if active_cols:
+                        headers_line = " | ".join(active_cols)
+                        divider_line = " | ".join("---" for _ in active_cols)
+                        values_line = " | ".join(active_vals)
 
-                # 2. Replace table tag in raw HTML with a simple marker text to clear it out
+                        table_md = f"| {headers_line} |\n| {divider_line} |\n| {values_line} |"
+                        content = f"{context_str}\nRow {row_idx + 1}:\n{table_md}"
+
+                        table_chunks.append(
+                            {
+                                "content": content,
+                                "metadata": {
+                                    "type": "table_row",
+                                    "table_index": i,
+                                    "row_index": row_idx,
+                                    "table_title": table_title,
+                                },
+                            }
+                        )
+
+                # Replace table tag in raw HTML with a simple marker text
                 table_tag.replace_with(
                     soup.new_string(f" [Refer to Table: {table_title}] ")
                 )
@@ -138,8 +202,15 @@ class TokenAwareChunker:
                 # Fallback: remove table tag on exception to prevent raw html tags leak
                 table_tag.decompose()
 
-        # Extract remaining cleaned text from BS4 DOM
-        cleaned_text = soup.get_text(separator="\n")
+        # Extract remaining cleaned text using html2text configured with settings
+        html_conv_config = self.config.get("html_converter", {})
+        converter = html2text.HTML2Text()
+        converter.ignore_images = html_conv_config.get("ignore_images", True)
+        converter.ignore_emphasis = html_conv_config.get("ignore_emphasis", True)
+        converter.ignore_links = html_conv_config.get("ignore_links", True)
+        converter.body_width = html_conv_config.get("body_width", 0)
+
+        cleaned_text = converter.handle(str(soup))
         # Collapse multiple empty newlines
         cleaned_text = re.sub(r"\n\s*\n+", "\n\n", cleaned_text).strip()
 

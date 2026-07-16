@@ -15,6 +15,9 @@ class IngestSettings(BaseSettings):
         "target_html_selector", "main.page-content"
     )
 
+    # Expose raw configuration dictionary for downstream consumers
+    config: dict = ingest_yaml
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",

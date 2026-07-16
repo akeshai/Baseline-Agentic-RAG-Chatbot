@@ -1,10 +1,11 @@
 from typing import Any, Dict, List
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, type_coerce, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import SessionLocal
-from app.ingest.models import DocumentChunk, DocumentVersion
+from app.configs.dbs import settings as db_settings
+from app.database import SessionLocal, engine
+from app.ingest.models import DocumentChunk, DocumentVersion, IngestedDocument
 from app.vector_store.interface import BaseVectorStore
 from app.embeddings import BaseEmbeddingAdapter, get_embedding_adapter
 
@@ -40,6 +41,13 @@ class PGVectorStore(BaseVectorStore):
                 f"expected {len(chunks)}, got {len(vectors)}"
             )
 
+        # Determine database dialect
+        if db_session is not None:
+            dialect = db_session.bind.dialect.name
+        else:
+            dialect = engine.dialect.name
+        is_postgres = dialect == "postgresql"
+
         if db_session is not None:
             # Use shared transaction session
             for idx, chunk in enumerate(chunks):
@@ -48,6 +56,10 @@ class PGVectorStore(BaseVectorStore):
                     chunk_index=idx,
                     content=chunk["content"],
                     embedding=vectors[idx],
+                    tsv_content=func.to_tsvector("english", chunk["content"])
+                    if is_postgres
+                    else chunk["content"],
+                    chunk_metadata=chunk.get("metadata"),
                 )
                 db_session.add(db_chunk)
             await db_session.flush()
@@ -60,6 +72,10 @@ class PGVectorStore(BaseVectorStore):
                         chunk_index=idx,
                         content=chunk["content"],
                         embedding=vectors[idx],
+                        tsv_content=func.to_tsvector("english", chunk["content"])
+                        if is_postgres
+                        else chunk["content"],
+                        chunk_metadata=chunk.get("metadata"),
                     )
                     session.add(db_chunk)
                 await session.commit()
@@ -109,36 +125,110 @@ class PGVectorStore(BaseVectorStore):
     ) -> List[Dict[str, Any]]:
         """
         Returns top semantic matches using cosine distance (<=>) on PostgreSQL,
-        or simple table scans on SQLite fallback databases.
+        or simple table scans on SQLite fallback databases, returning only active chunks.
         """
         async with SessionLocal() as session:
             query_vector = await self.embedding_adapter.embed_query(query_text)
             dialect = session.bind.dialect.name
 
             if dialect == "postgresql":
-                # Compile-safe Cosine Distance operator
+                from pgvector.sqlalchemy import Vector
+
+                # 1. Define vector search CTE (top 20 candidates)
+                vector_search = (
+                    select(
+                        DocumentChunk.id,
+                        func.row_number().over(
+                            order_by=type_coerce(DocumentChunk.embedding, Vector(db_settings.vector_dim)).cosine_distance(query_vector)
+                        ).label("rank")
+                    )
+                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
+                    .where(DocumentVersion.status == "active")
+                    .limit(20)
+                ).cte("vector_search")
+
+                # 2. Define FTS keyword search CTE (top 20 candidates)
+                fts_query = func.plainto_tsquery("english", query_text)
+                fts_search = (
+                    select(
+                        DocumentChunk.id,
+                        func.row_number().over(
+                            order_by=func.ts_rank(DocumentChunk.tsv_content, fts_query).desc()
+                        ).label("rank")
+                    )
+                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
+                    .where(
+                        (DocumentVersion.status == "active") &
+                        (DocumentChunk.tsv_content.op("@@")(fts_query))
+                    )
+                    .limit(20)
+                ).cte("fts_search")
+
+                # 3. Perform RRF join to merge candidates
                 stmt = (
                     select(
+                        DocumentChunk.id,
                         DocumentChunk.content,
-                        DocumentChunk.embedding.cosine_distance(query_vector).label(
-                            "distance"
-                        ),
+                        IngestedDocument.title,
+                        IngestedDocument.source_identifier,
+                        (
+                            func.coalesce(1.0 / (60.0 + vector_search.c.rank), 0.0) +
+                            func.coalesce(1.0 / (60.0 + fts_search.c.rank), 0.0)
+                        ).label("rrf_score"),
+                        DocumentChunk.version_id,
+                        DocumentChunk.chunk_metadata,
                     )
-                    .order_by("distance")
+                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
+                    .join(IngestedDocument, DocumentVersion.document_id == IngestedDocument.id)
+                    .join(vector_search, DocumentChunk.id == vector_search.c.id, isouter=True)
+                    .join(fts_search, DocumentChunk.id == fts_search.c.id, isouter=True)
+                    .where(
+                        (DocumentVersion.status == "active") &
+                        ((vector_search.c.id.isnot(None)) | (fts_search.c.id.isnot(None)))
+                    )
+                    .order_by(
+                        (
+                            func.coalesce(1.0 / (60.0 + vector_search.c.rank), 0.0) +
+                            func.coalesce(1.0 / (60.0 + fts_search.c.rank), 0.0)
+                        ).desc()
+                    )
                     .limit(limit)
                 )
+
                 result = await session.execute(stmt)
                 return [
-                    {"content": r[0], "distance": float(r[1])} for r in result.all()
+                    {
+                        "id": r[0],
+                        "content": r[1],
+                        "score": float(r[4]),  # Combined RRF Score
+                        "title": r[2],
+                        "source": r[3],
+                        "version_id": r[5],
+                        "metadata": r[6],
+                    }
+                    for r in result.all()
                 ]
             else:
-                # Fallback implementation for SQLite (non-production testing)
-                stmt = select(DocumentChunk.content, DocumentChunk.embedding)
+                # SQLite fallback join query for test databases
+                stmt = (
+                    select(
+                        DocumentChunk.id,
+                        DocumentChunk.content,
+                        DocumentChunk.embedding,
+                        IngestedDocument.title,
+                        IngestedDocument.source_identifier,
+                        DocumentChunk.version_id,
+                        DocumentChunk.chunk_metadata,
+                    )
+                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
+                    .join(IngestedDocument, DocumentVersion.document_id == IngestedDocument.id)
+                    .where(DocumentVersion.status == "active")
+                )
                 result = await session.execute(stmt)
                 rows = result.all()
 
                 matches = []
-                for content, emb_raw in rows:
+                for chunk_id, content, emb_raw, title, source, version_id, chunk_metadata in rows:
                     if not emb_raw or len(emb_raw) != len(query_vector):
                         continue
                     # Compute cosine similarity manually for testing compatibility
@@ -148,8 +238,17 @@ class PGVectorStore(BaseVectorStore):
                     similarity = (
                         dot_product / (norm_a * norm_b) if norm_a and norm_b else 0.0
                     )
-                    distance = 1.0 - similarity
-                    matches.append({"content": content, "distance": distance})
+                    matches.append(
+                        {
+                            "id": chunk_id,
+                            "content": content,
+                            "score": float(similarity),
+                            "title": title,
+                            "source": source,
+                            "version_id": version_id,
+                            "metadata": chunk_metadata,
+                        }
+                    )
 
-                matches.sort(key=lambda x: x["distance"])
+                matches.sort(key=lambda x: x["score"], reverse=True)
                 return matches[:limit]

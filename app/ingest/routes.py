@@ -56,6 +56,7 @@ async def ingest_raw_text(
             identifier=req.source_identifier,
             title=req.title,
             text_content=req.text_content,
+            is_html=req.is_html,
         )
     except Exception as e:
         logger.error("Ingest text failed: %s", e)
@@ -135,6 +136,7 @@ async def ingest_manual_file(
 )
 async def ingest_crawl_task_pages(
     task_id: int,
+    force: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -156,12 +158,45 @@ async def ingest_crawl_task_pages(
         # Since this can run in a background worker context, yield control to the loop
         await asyncio.sleep(0.001)
         try:
-            res = await ingestion_service.ingest_content(
-                source_type="url",
-                identifier=page.url,
-                title=page.title,
-                text_content=page.text_content or "",
-            )
+            # Check if html_content needs to be resolved from Object Storage
+            html_content = page.html_content or ""
+            if html_content.startswith("object://"):
+                try:
+                    uri = html_content[9:]
+                    # Parts are bucket/key (split by first slash)
+                    if "/" in uri:
+                        bucket, key = uri.split("/", 1)
+                        object_storage = get_object_storage()
+                        html_bytes = await object_storage.download_file(bucket, key)
+                        html_content = html_bytes.decode("utf-8", errors="ignore")
+                except Exception as e:
+                    logger.error(
+                        "Failed to load html content from Object Storage for %s: %s",
+                        page.url,
+                        e,
+                    )
+                    html_content = ""
+
+            # If html_content is available, pass it with is_html=True
+            if html_content:
+                res = await ingestion_service.ingest_content(
+                    source_type="url",
+                    identifier=page.url,
+                    title=page.title,
+                    text_content=html_content,
+                    is_html=True,
+                    force_reingest=force,
+                )
+            else:
+                # Fallback to plain text
+                res = await ingestion_service.ingest_content(
+                    source_type="url",
+                    identifier=page.url,
+                    title=page.title,
+                    text_content=page.text_content or "",
+                    is_html=False,
+                    force_reingest=force,
+                )
             responses.append(res)
         except Exception as e:
             logger.error("Failed to ingest crawled page %s: %s", page.url, e)

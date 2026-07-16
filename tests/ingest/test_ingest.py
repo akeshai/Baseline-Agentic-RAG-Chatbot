@@ -353,6 +353,7 @@ def test_target_html_selector_extraction():
     # 1. Chunker without selector (should extract everything)
     chunker_all = TokenAwareChunker()
     chunker_all.target_html_selector = None
+    chunker_all.config = {}  # Clear global excludes from selectors.yaml for this test
     chunks_all = chunker_all._chunk_document_sync(html, is_html=True)
     assert len(chunks_all) > 0
     text_all = "".join(c["content"] for c in chunks_all)
@@ -368,3 +369,59 @@ def test_target_html_selector_extraction():
     assert "Header content" not in text_targeted
     assert "Footer content" not in text_targeted
     assert "important targeted content" in text_targeted
+
+
+def test_dynamic_html_selector_cleaning():
+    """
+    Verifies that TokenAwareChunker correctly prunes elements matching excludes,
+    finds the root, and handles include strategies.
+    """
+    html = """
+    <html>
+        <body>
+            <header class="site-header">Header to prune</header>
+            <div class="breadcrumbs">Breadcrumbs to prune</div>
+            <main class="page-content">
+                <article class="main-content">
+                    <h1>DCB Savings</h1>
+                    <p>Important savings text.</p>
+                </article>
+                <div class="ads banner-ad">Prune me</div>
+                <article class="main-content">
+                    <h2>Another section</h2>
+                    <p>More text.</p>
+                </article>
+            </main>
+            <aside class="sidebar">Prune me</aside>
+            <footer class="footer">Prune me</footer>
+        </body>
+    </html>
+    """
+    chunker = TokenAwareChunker()
+    chunker.config = {
+        "root_selectors": ["main", ".page-content"],
+        "include": {
+            "strategy": "all_matches",
+            "selectors": [".main-content", "article"]
+        },
+        "exclude": {
+            "tags": ["header", "footer", "aside"],
+            "classes": ["sidebar", "ads", "breadcrumbs"],
+            "ids": []
+        },
+        "html_converter": {
+            "ignore_images": True,
+            "ignore_emphasis": True,
+            "ignore_links": True,
+            "body_width": 0
+        }
+    }
+    cleaned_text, _ = chunker._process_html_tables_and_text(html, source_title="TestDoc")
+    
+    assert "Header to prune" not in cleaned_text
+    assert "Breadcrumbs to prune" not in cleaned_text
+    assert "Prune me" not in cleaned_text
+    assert "DCB Savings" in cleaned_text
+    assert "Important savings text." in cleaned_text
+    assert "Another section" in cleaned_text
+

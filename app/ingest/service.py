@@ -230,6 +230,7 @@ class IngestionService:
         text_content: str = "",
         raw_storage_key: str = None,
         is_html: bool = False,
+        force_reingest: bool = False,
     ) -> Dict[str, Any]:
         """
         Coordinates document parsing, deduplication, chunking, embedding updates, and Q&A sync.
@@ -251,7 +252,7 @@ class IngestionService:
 
                 if doc:
                     # Case A: Document already exists. Verify if content changed
-                    if doc.current_hash == content_hash:
+                    if doc.current_hash == content_hash and not force_reingest:
                         logger.info(
                             "Ingestion skipped for %s (hash matches latest)", identifier
                         )

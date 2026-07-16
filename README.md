@@ -3,8 +3,9 @@
 This repository provides a secure, async-first ChatBot API containing:
 1. **Authentication Service**: Stateful API key generation (`sk_live_...`), SHA-256 async hashing, and role-based access control (RBAC).
 2. **Crawling Service**: Production-grade Playwright BFS crawler that handles dynamic JavaScript-rendered pages and PDFs, respects rates, utilizes exponential backoff retries, and stores files modularly.
-3. **Ingestion & Versioning Service**: Processes crawled pages and manual uploads, splits text using a token-aware chunker, structures HTML tables row-by-row, and syncs chunks to a vector search index with Redis FAQ caching.
+3. **Ingestion & Versioning Service**: Processes crawled pages and manual uploads, splits text using a token-aware chunker, structures HTML tables row-by-row, indexes text using parallel Vector (HNSW) and Full-Text Search (GIN), and manages document versioning.
 4. **Global Object Storage**: Reusable object storage backend that Simulates S3/MinIO bucket hierarchies locally on disk.
+5. **RRF Search & Table Sibling Resolution**: Integrates dense vector cosine similarity and full-text keyword searches using Reciprocal Rank Fusion (RRF), dynamically stitching sibling table row chunks back into complete original Markdown tables.
 
 ---
 
@@ -15,6 +16,7 @@ For detailed guides on routes, APIs, and custom scraping selectors:
 - **[Crawling Service Routes](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/routes/crawl.md)**
 - **[Ingestion Service Routes](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/routes/ingest.md)**
 - **[Selector Configurations Guide](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/selectors_guide.md)**
+- **[ADR-005: RRF Search & Table Sibling Resolution](file:///c:/Users/akliv/Desktop/AkeshPersonal/ChatBot/docs/decisions/ADR-005-rrf-hybrid-search-and-table-reconstruction.md)**
 
 ---
 

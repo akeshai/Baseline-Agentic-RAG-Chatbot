@@ -61,9 +61,21 @@ class OCIEmbeddingAdapter(BaseEmbeddingAdapter):
 
     async def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """
-        Generates embedding vectors for multiple texts using SEARCH_DOCUMENT type in one batched call.
+        Generates embedding vectors for multiple texts using SEARCH_DOCUMENT type.
+        Splits inputs into sub-batches of 90 to fit within OCI's maximum limit of 96 inputs per request.
         """
-        return await self._embed_texts(texts, input_type="SEARCH_DOCUMENT")
+        if not texts:
+            return []
+
+        batch_size = 90
+        results = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            batch_embeddings = await self._embed_texts(
+                batch, input_type="SEARCH_DOCUMENT"
+            )
+            results.extend(batch_embeddings)
+        return results
 
     async def _embed_texts(
         self, texts: List[str], input_type: str

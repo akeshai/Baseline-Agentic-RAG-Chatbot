@@ -58,6 +58,17 @@ async def test_embedding_adapter_embed_documents():
 
 
 @pytest.mark.anyio
+async def test_embedding_adapter_embed_documents_large_batching():
+    adapter = get_embedding_adapter()
+    # 100 items (exceeds OCI 96 limit)
+    docs = [f"document text {i}" for i in range(100)]
+    vectors = await adapter.embed_documents(docs)
+
+    assert len(vectors) == 100
+    assert all(len(v) == 384 for v in vectors)
+
+
+@pytest.mark.anyio
 async def test_pgvector_integration_with_adapter():
     store = PGVectorStore()
     assert store.embedding_adapter == get_embedding_adapter()

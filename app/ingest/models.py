@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from sqlalchemy import TEXT, ForeignKey, String, func
+from sqlalchemy import TEXT, ForeignKey, String, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
 
@@ -50,6 +50,27 @@ class SafeVector(TypeDecorator):
             return json.loads(value)
         except Exception:
             return []
+
+
+class SafeTSVector(TypeDecorator):
+    """
+    Custom SQLAlchemy type that compiles to PostgreSQL's TSVECTOR,
+    and falls back to TEXT on SQLite for local testing.
+    """
+
+    impl = TEXT
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            try:
+                from sqlalchemy.dialects.postgresql import TSVECTOR
+
+                return dialect.type_descriptor(TSVECTOR())
+            except ImportError:
+                return dialect.type_descriptor(TEXT())
+        else:
+            return dialect.type_descriptor(TEXT())
 
 
 class IngestedDocument(Base):
@@ -115,6 +136,9 @@ class DocumentChunk(Base):
     embedding: Mapped[List[float]] = mapped_column(
         SafeVector(db_settings.vector_dim), nullable=False
     )
+
+    tsv_content: Mapped[Optional[Any]] = mapped_column(SafeTSVector, nullable=True)
+    chunk_metadata: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     # Relationship to version
     version: Mapped["DocumentVersion"] = relationship(

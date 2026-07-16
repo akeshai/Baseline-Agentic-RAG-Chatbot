@@ -42,6 +42,7 @@ class BaseVectorStore(ABC):
         limit: int = 5,
     ) -> List[Dict[str, Any]]:
         """
-        Calculates search embedding and returns top matches.
+        Calculates search embedding and returns top matches with parent context.
+        Each match contains: content, score (similarity), title, and source identifier.
         """
         pass
