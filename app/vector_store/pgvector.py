@@ -138,11 +138,17 @@ class PGVectorStore(BaseVectorStore):
                 vector_search = (
                     select(
                         DocumentChunk.id,
-                        func.row_number().over(
-                            order_by=type_coerce(DocumentChunk.embedding, Vector(db_settings.vector_dim)).cosine_distance(query_vector)
-                        ).label("rank")
+                        func.row_number()
+                        .over(
+                            order_by=type_coerce(
+                                DocumentChunk.embedding, Vector(db_settings.vector_dim)
+                            ).cosine_distance(query_vector)
+                        )
+                        .label("rank"),
                     )
-                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
+                    .join(
+                        DocumentVersion, DocumentChunk.version_id == DocumentVersion.id
+                    )
                     .where(DocumentVersion.status == "active")
                     .limit(20)
                 ).cte("vector_search")
@@ -152,14 +158,20 @@ class PGVectorStore(BaseVectorStore):
                 fts_search = (
                     select(
                         DocumentChunk.id,
-                        func.row_number().over(
-                            order_by=func.ts_rank(DocumentChunk.tsv_content, fts_query).desc()
-                        ).label("rank")
+                        func.row_number()
+                        .over(
+                            order_by=func.ts_rank(
+                                DocumentChunk.tsv_content, fts_query
+                            ).desc()
+                        )
+                        .label("rank"),
                     )
-                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
+                    .join(
+                        DocumentVersion, DocumentChunk.version_id == DocumentVersion.id
+                    )
                     .where(
-                        (DocumentVersion.status == "active") &
-                        (DocumentChunk.tsv_content.op("@@")(fts_query))
+                        (DocumentVersion.status == "active")
+                        & (DocumentChunk.tsv_content.op("@@")(fts_query))
                     )
                     .limit(20)
                 ).cte("fts_search")
@@ -172,24 +184,36 @@ class PGVectorStore(BaseVectorStore):
                         IngestedDocument.title,
                         IngestedDocument.source_identifier,
                         (
-                            func.coalesce(1.0 / (60.0 + vector_search.c.rank), 0.0) +
-                            func.coalesce(1.0 / (60.0 + fts_search.c.rank), 0.0)
+                            func.coalesce(1.0 / (60.0 + vector_search.c.rank), 0.0)
+                            + func.coalesce(1.0 / (60.0 + fts_search.c.rank), 0.0)
                         ).label("rrf_score"),
                         DocumentChunk.version_id,
                         DocumentChunk.chunk_metadata,
                     )
-                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
-                    .join(IngestedDocument, DocumentVersion.document_id == IngestedDocument.id)
-                    .join(vector_search, DocumentChunk.id == vector_search.c.id, isouter=True)
+                    .join(
+                        DocumentVersion, DocumentChunk.version_id == DocumentVersion.id
+                    )
+                    .join(
+                        IngestedDocument,
+                        DocumentVersion.document_id == IngestedDocument.id,
+                    )
+                    .join(
+                        vector_search,
+                        DocumentChunk.id == vector_search.c.id,
+                        isouter=True,
+                    )
                     .join(fts_search, DocumentChunk.id == fts_search.c.id, isouter=True)
                     .where(
-                        (DocumentVersion.status == "active") &
-                        ((vector_search.c.id.isnot(None)) | (fts_search.c.id.isnot(None)))
+                        (DocumentVersion.status == "active")
+                        & (
+                            (vector_search.c.id.isnot(None))
+                            | (fts_search.c.id.isnot(None))
+                        )
                     )
                     .order_by(
                         (
-                            func.coalesce(1.0 / (60.0 + vector_search.c.rank), 0.0) +
-                            func.coalesce(1.0 / (60.0 + fts_search.c.rank), 0.0)
+                            func.coalesce(1.0 / (60.0 + vector_search.c.rank), 0.0)
+                            + func.coalesce(1.0 / (60.0 + fts_search.c.rank), 0.0)
                         ).desc()
                     )
                     .limit(limit)
@@ -220,15 +244,28 @@ class PGVectorStore(BaseVectorStore):
                         DocumentChunk.version_id,
                         DocumentChunk.chunk_metadata,
                     )
-                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
-                    .join(IngestedDocument, DocumentVersion.document_id == IngestedDocument.id)
+                    .join(
+                        DocumentVersion, DocumentChunk.version_id == DocumentVersion.id
+                    )
+                    .join(
+                        IngestedDocument,
+                        DocumentVersion.document_id == IngestedDocument.id,
+                    )
                     .where(DocumentVersion.status == "active")
                 )
                 result = await session.execute(stmt)
                 rows = result.all()
 
                 matches = []
-                for chunk_id, content, emb_raw, title, source, version_id, chunk_metadata in rows:
+                for (
+                    chunk_id,
+                    content,
+                    emb_raw,
+                    title,
+                    source,
+                    version_id,
+                    chunk_metadata,
+                ) in rows:
                     if not emb_raw or len(emb_raw) != len(query_vector):
                         continue
                     # Compute cosine similarity manually for testing compatibility

@@ -43,8 +43,13 @@ async def perform_similarity_search(
                         DocumentChunk.version_id,
                         DocumentChunk.chunk_metadata,
                     )
-                    .join(DocumentVersion, DocumentChunk.version_id == DocumentVersion.id)
-                    .join(IngestedDocument, DocumentVersion.document_id == IngestedDocument.id)
+                    .join(
+                        DocumentVersion, DocumentChunk.version_id == DocumentVersion.id
+                    )
+                    .join(
+                        IngestedDocument,
+                        DocumentVersion.document_id == IngestedDocument.id,
+                    )
                     .where(DocumentChunk.id.in_(req.chunk_ids))
                 )
                 res = await db.execute(stmt)
@@ -59,16 +64,32 @@ async def perform_similarity_search(
                     meta = row[7] or {}
 
                     # Resolve full table if requested and chunk is a table row
-                    if req.resolve_full_tables and meta.get("type") == "table_row" and "table_index" in meta:
+                    if (
+                        req.resolve_full_tables
+                        and meta.get("type") == "table_row"
+                        and "table_index" in meta
+                    ):
                         table_index = meta["table_index"]
                         stmt_siblings = (
                             select(DocumentChunk.content)
                             .where(
-                                (DocumentChunk.version_id == version_id) &
-                                (DocumentChunk.chunk_metadata["type"].as_string() == "table_row") &
-                                (DocumentChunk.chunk_metadata["table_index"].as_integer() == table_index)
+                                (DocumentChunk.version_id == version_id)
+                                & (
+                                    DocumentChunk.chunk_metadata["type"].as_string()
+                                    == "table_row"
+                                )
+                                & (
+                                    DocumentChunk.chunk_metadata[
+                                        "table_index"
+                                    ].as_integer()
+                                    == table_index
+                                )
                             )
-                            .order_by(DocumentChunk.chunk_metadata["row_index"].as_integer().asc())
+                            .order_by(
+                                DocumentChunk.chunk_metadata["row_index"]
+                                .as_integer()
+                                .asc()
+                            )
                         )
                         res_siblings = await db.execute(stmt_siblings)
                         sibling_contents = [r[0] for r in res_siblings.all()]
@@ -84,7 +105,11 @@ async def perform_similarity_search(
 
                             for sc in sibling_contents:
                                 lines = sc.split("\n")
-                                table_lines = [l.strip() for l in lines if l.strip().startswith("|")]
+                                table_lines = [
+                                    line.strip()
+                                    for line in lines
+                                    if line.strip().startswith("|")
+                                ]
                                 if len(table_lines) >= 3:
                                     if headers is None:
                                         headers = table_lines[0]
@@ -107,8 +132,8 @@ async def perform_similarity_search(
                             metadata={
                                 "document_id": doc_id,
                                 "chunk_index": chunk_index,
-                                **meta
-                            }
+                                **meta,
+                            },
                         )
                     )
             return SearchResponse(results=results)
@@ -121,8 +146,10 @@ async def perform_similarity_search(
             )
 
         limit = req.limit or 5
-        raw_results = await vector_store.query_similarity(query_text=req.query, limit=limit)
-        
+        raw_results = await vector_store.query_similarity(
+            query_text=req.query, limit=limit
+        )
+
         resolved_results = []
         if req.resolve_full_tables:
             async with SessionLocal() as db:
@@ -131,16 +158,32 @@ async def perform_similarity_search(
                     version_id = item.get("version_id")
                     content = item["content"]
 
-                    if meta.get("type") == "table_row" and version_id is not None and "table_index" in meta:
+                    if (
+                        meta.get("type") == "table_row"
+                        and version_id is not None
+                        and "table_index" in meta
+                    ):
                         table_index = meta["table_index"]
                         stmt_siblings = (
                             select(DocumentChunk.content)
                             .where(
-                                (DocumentChunk.version_id == version_id) &
-                                (DocumentChunk.chunk_metadata["type"].as_string() == "table_row") &
-                                (DocumentChunk.chunk_metadata["table_index"].as_integer() == table_index)
+                                (DocumentChunk.version_id == version_id)
+                                & (
+                                    DocumentChunk.chunk_metadata["type"].as_string()
+                                    == "table_row"
+                                )
+                                & (
+                                    DocumentChunk.chunk_metadata[
+                                        "table_index"
+                                    ].as_integer()
+                                    == table_index
+                                )
                             )
-                            .order_by(DocumentChunk.chunk_metadata["row_index"].as_integer().asc())
+                            .order_by(
+                                DocumentChunk.chunk_metadata["row_index"]
+                                .as_integer()
+                                .asc()
+                            )
                         )
                         res_siblings = await db.execute(stmt_siblings)
                         sibling_contents = [r[0] for r in res_siblings.all()]
@@ -156,7 +199,11 @@ async def perform_similarity_search(
 
                             for sc in sibling_contents:
                                 lines = sc.split("\n")
-                                table_lines = [l.strip() for l in lines if l.strip().startswith("|")]
+                                table_lines = [
+                                    line.strip()
+                                    for line in lines
+                                    if line.strip().startswith("|")
+                                ]
                                 if len(table_lines) >= 3:
                                     if headers is None:
                                         headers = table_lines[0]

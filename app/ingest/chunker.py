@@ -89,13 +89,13 @@ class TokenAwareChunker:
         for tag in exclude.get("tags", []):
             for el in soup.find_all(tag):
                 el.decompose()
-        
+
         # Substring regex matching for classes to handle Next.js CSS Modules
         for cls in exclude.get("classes", []):
             pattern = re.compile(re.escape(cls), re.IGNORECASE)
             for el in soup.find_all(class_=pattern):
                 el.decompose()
-                
+
         # Substring regex matching for IDs
         for eid in exclude.get("ids", []):
             pattern = re.compile(re.escape(eid), re.IGNORECASE)
@@ -179,7 +179,9 @@ class TokenAwareChunker:
                         divider_line = " | ".join("---" for _ in active_cols)
                         values_line = " | ".join(active_vals)
 
-                        table_md = f"| {headers_line} |\n| {divider_line} |\n| {values_line} |"
+                        table_md = (
+                            f"| {headers_line} |\n| {divider_line} |\n| {values_line} |"
+                        )
                         content = f"{context_str}\nRow {row_idx + 1}:\n{table_md}"
 
                         table_chunks.append(

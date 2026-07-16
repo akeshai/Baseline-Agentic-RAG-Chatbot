@@ -10,6 +10,7 @@ from app.ingest import ingest_router
 from app.search.routes import router as search_router
 import logging as logger
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Automatically create database tables using async connection context

@@ -64,7 +64,7 @@ class HTMLTableParser:
         # 1. Flatten MultiIndex columns
         if self.flatten_headers and isinstance(df.columns, pd.MultiIndex):
             new_columns = []
-            
+
             # Detect shared Level 0 prefix across all columns to prevent repetition
             shared_prefix = None
             if len(df.columns) > 1:
@@ -77,7 +77,7 @@ class HTMLTableParser:
                     candidate = str(first_levels[0]).strip()
                     if "Unnamed" not in candidate:
                         shared_prefix = candidate
-            
+
             if shared_prefix:
                 df.attrs["table_subtitle"] = shared_prefix
 

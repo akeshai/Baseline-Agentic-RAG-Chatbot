@@ -20,7 +20,8 @@ class TextIngestRequest(BaseModel):
         ..., description="The cleaned raw text content to ingest, chunk, and embed."
     )
     is_html: Optional[bool] = Field(
-        default=False, description="If True, treats text as HTML and parses structured elements."
+        default=False,
+        description="If True, treats text as HTML and parses structured elements.",
     )
 
 

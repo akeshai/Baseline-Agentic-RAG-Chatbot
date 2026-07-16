@@ -402,26 +402,27 @@ def test_dynamic_html_selector_cleaning():
         "root_selectors": ["main", ".page-content"],
         "include": {
             "strategy": "all_matches",
-            "selectors": [".main-content", "article"]
+            "selectors": [".main-content", "article"],
         },
         "exclude": {
             "tags": ["header", "footer", "aside"],
             "classes": ["sidebar", "ads", "breadcrumbs"],
-            "ids": []
+            "ids": [],
         },
         "html_converter": {
             "ignore_images": True,
             "ignore_emphasis": True,
             "ignore_links": True,
-            "body_width": 0
-        }
+            "body_width": 0,
+        },
     }
-    cleaned_text, _ = chunker._process_html_tables_and_text(html, source_title="TestDoc")
-    
+    cleaned_text, _ = chunker._process_html_tables_and_text(
+        html, source_title="TestDoc"
+    )
+
     assert "Header to prune" not in cleaned_text
     assert "Breadcrumbs to prune" not in cleaned_text
     assert "Prune me" not in cleaned_text
     assert "DCB Savings" in cleaned_text
     assert "Important savings text." in cleaned_text
     assert "Another section" in cleaned_text
-

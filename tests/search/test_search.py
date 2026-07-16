@@ -36,7 +36,10 @@ async def test_search_lifecycle_and_active_version_joins(client):
 
         key_payload = {
             "key_in": {"name": "Search Test Key"},
-            "login_req": {"email": "search_tester@example.com", "password": "password123"},
+            "login_req": {
+                "email": "search_tester@example.com",
+                "password": "password123",
+            },
         }
         key_resp = client.post("/auth/api-keys", json=key_payload)
         assert key_resp.status_code == 201
@@ -45,8 +48,10 @@ async def test_search_lifecycle_and_active_version_joins(client):
         # 2. Ingest Version 1 content
         source_url = "https://www.dcb.bank.in/rates-saver"
         title = "DCB Savings Rates Overview"
-        v1_text = "The savings account interest rate is 5.5% per annum for standard balances."
-        
+        v1_text = (
+            "The savings account interest rate is 5.5% per annum for standard balances."
+        )
+
         ingest_v1_resp = client.post(
             "/ingest/text",
             json={
@@ -54,32 +59,29 @@ async def test_search_lifecycle_and_active_version_joins(client):
                 "title": title,
                 "text_content": v1_text,
             },
-            headers=headers
+            headers=headers,
         )
         assert ingest_v1_resp.status_code == 201
 
         # 3. Perform search on Version 1
         search_resp = client.post(
             "/search",
-            json={
-                "query": "What is the savings account rate?",
-                "limit": 3
-            },
-            headers=headers
+            json={"query": "What is the savings account rate?", "limit": 3},
+            headers=headers,
         )
         assert search_resp.status_code == 200
         search_data = search_resp.json()
         assert "results" in search_data
         results = search_data["results"]
         assert len(results) > 0
-        
+
         # Verify result item schema
         match = results[0]
         assert "content" in match
         assert "score" in match
         assert "title" in match
         assert "source" in match
-        
+
         # Verify content and metadata values
         assert "5.5% per annum" in match["content"]
         assert match["title"] == title
@@ -88,7 +90,9 @@ async def test_search_lifecycle_and_active_version_joins(client):
         assert -1.0 <= match["score"] <= 1.0
 
         # 4. Ingest Version 2 content (updates document, marks Version 1 superseded)
-        v2_text = "The savings account interest rate has been updated to 6.25% per annum."
+        v2_text = (
+            "The savings account interest rate has been updated to 6.25% per annum."
+        )
         ingest_v2_resp = client.post(
             "/ingest/text",
             json={
@@ -96,31 +100,28 @@ async def test_search_lifecycle_and_active_version_joins(client):
                 "title": title,
                 "text_content": v2_text,
             },
-            headers=headers
+            headers=headers,
         )
         assert ingest_v2_resp.status_code == 201
 
         # 5. Perform search again
         search_v2_resp = client.post(
             "/search",
-            json={
-                "query": "What is the savings account rate?",
-                "limit": 5
-            },
-            headers=headers
+            json={"query": "What is the savings account rate?", "limit": 5},
+            headers=headers,
         )
         assert search_v2_resp.status_code == 200
         search_v2_data = search_v2_resp.json()
         results_v2 = search_v2_data["results"]
-        
+
         # Verify that ONLY Version 2 chunks are found, and Version 1 superseded chunk is absent
         assert len(results_v2) > 0
-        
+
         # Check if the new text is retrieved
         found_new = any("6.25% per annum" in r["content"] for r in results_v2)
         # Check if the old text is completely hidden
         found_old = any("5.5% per annum" in r["content"] for r in results_v2)
-        
+
         assert found_new is True, "Should retrieve updated Version 2 chunk"
         assert found_old is False, "Should NOT retrieve superseded Version 1 chunk"
 
@@ -129,11 +130,7 @@ async def test_search_lifecycle_and_active_version_joins(client):
         assert chunk_id is not None, "Returned chunks should have unique integer ID"
 
         search_ids_resp = client.post(
-            "/search",
-            json={
-                "chunk_ids": [chunk_id]
-            },
-            headers=headers
+            "/search", json={"chunk_ids": [chunk_id]}, headers=headers
         )
         assert search_ids_resp.status_code == 200
         search_ids_data = search_ids_resp.json()
@@ -173,7 +170,10 @@ async def test_table_reconstruction_and_sibling_resolutions(client):
 
         key_payload = {
             "key_in": {"name": "Table Test Key"},
-            "login_req": {"email": "table_tester@example.com", "password": "password123"},
+            "login_req": {
+                "email": "table_tester@example.com",
+                "password": "password123",
+            },
         }
         key_resp = client.post("/auth/api-keys", json=key_payload)
         assert key_resp.status_code == 201
@@ -216,30 +216,35 @@ async def test_table_reconstruction_and_sibling_resolutions(client):
                 "text_content": html_content,
                 "is_html": True,
             },
-            headers=headers
+            headers=headers,
         )
         assert ingest_resp.status_code == 201
 
         # 3. Search WITHOUT resolving full tables
         search_normal_resp = client.post(
             "/search",
-            json={
-                "query": "10 months",
-                "resolve_full_tables": False
-            },
-            headers=headers
+            json={"query": "10 months", "resolve_full_tables": False},
+            headers=headers,
         )
         assert search_normal_resp.status_code == 200
         normal_results = search_normal_resp.json()["results"]
         assert len(normal_results) > 0
 
         # Find the chunk of type table_row in the results
-        table_row_chunks = [r for r in normal_results if r.get("metadata", {}).get("type") == "table_row"]
-        assert len(table_row_chunks) > 0, f"Expected table_row chunk in results: {normal_results}"
+        table_row_chunks = [
+            r
+            for r in normal_results
+            if r.get("metadata", {}).get("type") == "table_row"
+        ]
+        assert len(table_row_chunks) > 0, (
+            f"Expected table_row chunk in results: {normal_results}"
+        )
         normal_chunk = table_row_chunks[0]
 
         # Should contain single row details
-        assert ("Row 1:" in normal_chunk["content"]) or ("Row 2:" in normal_chunk["content"])
+        assert ("Row 1:" in normal_chunk["content"]) or (
+            "Row 2:" in normal_chunk["content"]
+        )
         if "Row 1:" in normal_chunk["content"]:
             assert "10 months" in normal_chunk["content"]
             assert "6.50%" in normal_chunk["content"]
@@ -252,18 +257,19 @@ async def test_table_reconstruction_and_sibling_resolutions(client):
         # 4. Search WITH resolving full tables enabled
         search_resolve_resp = client.post(
             "/search",
-            json={
-                "query": "10 months",
-                "resolve_full_tables": True
-            },
-            headers=headers
+            json={"query": "10 months", "resolve_full_tables": True},
+            headers=headers,
         )
         assert search_resolve_resp.status_code == 200
         resolved_results = search_resolve_resp.json()["results"]
         assert len(resolved_results) > 0
 
         # Find resolved table row chunk in results
-        resolved_table_chunks = [r for r in resolved_results if r.get("metadata", {}).get("type") == "table_row"]
+        resolved_table_chunks = [
+            r
+            for r in resolved_results
+            if r.get("metadata", {}).get("type") == "table_row"
+        ]
         assert len(resolved_table_chunks) > 0
         resolved_chunk = resolved_table_chunks[0]
 
@@ -277,11 +283,8 @@ async def test_table_reconstruction_and_sibling_resolutions(client):
         chunk_id = normal_chunk["id"]
         search_ids_resp = client.post(
             "/search",
-            json={
-                "chunk_ids": [chunk_id],
-                "resolve_full_tables": True
-            },
-            headers=headers
+            json={"chunk_ids": [chunk_id], "resolve_full_tables": True},
+            headers=headers,
         )
         assert search_ids_resp.status_code == 200
         resolved_ids = search_ids_resp.json()["results"]
