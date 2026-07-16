@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 from io import StringIO
 from typing import Dict, List
-
+import os
 import pandas as pd
 
 
@@ -42,25 +46,20 @@ class HTMLTableParser:
         self,
         html: str,
     ) -> List[pd.DataFrame]:
-
         return self._parse_tables(html)
 
     def parse_table(
         self,
         table,
     ) -> pd.DataFrame:
-
         html = str(table)
-
         return self._parse_tables(html)[0]
 
     def parse_to_records(
         self,
         html: str,
     ) -> List[List[Dict]]:
-
         dfs = self._parse_tables(html)
-
         return [df.to_dict(orient="records") for df in dfs]
 
     # -----------------------------------------------------
@@ -68,23 +67,15 @@ class HTMLTableParser:
     # -----------------------------------------------------
 
     def _parse_tables(self, html: str):
-
         dfs = pd.read_html(StringIO(html))
-
         cleaned = []
-
         for df in dfs:
             df = self._clean_dataframe(df)
-
             cleaned.append(df)
-
         return cleaned
 
     def _clean_dataframe(self, df: pd.DataFrame):
-
-        # ----------------------------
         # Flatten MultiIndex
-        # ----------------------------
         if self.flatten_headers and isinstance(df.columns, pd.MultiIndex):
             df.columns = [
                 " > ".join(
@@ -94,36 +85,23 @@ class HTMLTableParser:
                 )
                 for col in df.columns
             ]
-
         else:
             df.columns = [str(c).replace("\n", " ").strip() for c in df.columns]
 
-        # ----------------------------
         # Normalize cells
-        # ----------------------------
-
         df = df.map(
             lambda x: str(x).replace("\xa0", " ").strip() if pd.notna(x) else None
         )
 
-        # ----------------------------
         # Forward fill rowspan cells
-        # ----------------------------
-
         if self.forward_fill:
             df = df.ffill()
 
-        # ----------------------------
         # Remove empty rows
-        # ----------------------------
-
         if self.drop_empty_rows:
             df = df.dropna(how="all")
 
-        # ----------------------------
         # Remove empty columns
-        # ----------------------------
-
         if self.drop_empty_cols:
             df = df.dropna(axis=1, how="all")
 
@@ -135,20 +113,28 @@ class HTMLTableParser:
 
     @staticmethod
     def dataframe_to_markdown(df: pd.DataFrame):
-
         return df.to_markdown(index=False)
 
     @staticmethod
     def dataframe_to_records(df: pd.DataFrame):
-
         return df.to_dict(orient="records")
 
 
-with open("experiments/artifacts/table_html_4.html.md", "r") as f:
-    html = f.read()
-parser = HTMLTableParser()
-dfs = parser.parse_html(html)
+if __name__ == "__main__":
+    with open("experiments/artifacts/dom.html", "r", encoding="utf-8") as f:
+        html = f.read()
 
-for i, df in enumerate(dfs, 1):
-    print(f"\n--------TABLE {i} --------")
-    print(df)
+    parser = HTMLTableParser()
+    dfs = parser.parse_html(html)
+
+    os.makedirs("experiments/artifacts", exist_ok=True)
+
+    for i, df in enumerate(dfs, 1):
+        print(f"\n--------TABLE {i} --------")
+        md_content = parser.dataframe_to_markdown(df)
+        print(md_content)
+        
+        file_path = f"experiments/artifacts/table_html_{i}.html.md"
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+        print(f"Saved to {file_path}")

@@ -2,9 +2,60 @@
 
 # Ingestion Selector Config
 ingestion:
-  # CSS selector to target specific HTML container section for RAG indexing
-  # Prevents headers, footers, navigation and boilerplate content from polluting search embeddings
   target_html_selector: "main.page-content"
+  
+  # Root selectors define the absolute main container(s) we look for first.
+  root_selectors:
+    - "main"
+    # - "[role='main']"
+    - ".page-content"
+    # - ".page-content"
+    # - "body"
+
+  # # Include selectors narrow down target text content within the selected root container.
+  # include:
+  #   strategy: "all_matches"
+  #   selectors:
+  #     - "main-business-wrapper"
+   
+
+  # Exclude rules specify elements to remove from the DOM tree entirely.
+  exclude:
+    tags:
+      - "script"
+      - "style"
+      - "noscript"
+      - "svg"
+      - "header"
+      - "footer"
+      - "nav"
+      - "aside"
+      - "button"
+    classes:
+      - "sidebar"
+      - "nav-menu"
+      - "ads"
+      # - "breadcrumb"
+      - "advertisement"
+      # - "primary-cta"
+      - "product-details-nav"
+      - "scroll-to-top"
+      - "banner"
+      - "hero-image"
+      - "PrimaryCta_primary-cta__rTfZh"
+    ids:
+      - "sidebar"
+      - "navigation"
+      - "header"
+      - "footer"
+      - "nav-header"
+
+  # html2text converter parsing options
+  html_converter:
+    ignore_images: true
+    ignore_emphasis: true
+    ignore_links: true
+    body_width: 0
 
 # Crawler Selectors Config (used by Playwright crawler engine)
 crawler:

@@ -32,6 +32,8 @@ dependencies = [
     "python-multipart",
     "minio>=7.2.20",
     "oci>=2.120.0",
+    "html2text>=2025.4.15",
+    "tabulate>=0.10.0",
 ]
 
 [tool.pytest.ini_options]
