@@ -25,8 +25,8 @@ class FAQRepository:
         return self._client
 
     def _slugify(self, question: str) -> str:
-        slug = re.sub(r'[^a-z0-9]+', '_', question.lower())
-        return slug.strip('_')
+        slug = re.sub(r"[^a-z0-9]+", "_", question.lower())
+        return slug.strip("_")
 
     async def get_faq_by_question(self, question: str) -> Optional[dict]:
         """
@@ -53,20 +53,22 @@ class FAQRepository:
             keys = self.client.smembers(category_set)
             if not keys:
                 return []
-            
+
             # Fetch all details in one pipelined call
             pipe = self.client.pipeline()
             for key in keys:
                 pipe.get(key)
             results = pipe.execute()
-            
+
             faqs = []
             for r in results:
                 if r:
                     faqs.append(json.loads(r))
             return faqs
         except Exception as e:
-            logger.error("Failed to query Redis FAQs by category %s: %s", category_id, e)
+            logger.error(
+                "Failed to query Redis FAQs by category %s: %s", category_id, e
+            )
         return []
 
     async def get_category_summary(self) -> Dict[str, int]:
@@ -75,6 +77,7 @@ class FAQRepository:
         Runs in O(C) where C is number of configured categories.
         """
         from app.configs.yaml_loader import categories_config
+
         summary = {}
         try:
             pipe = self.client.pipeline()
@@ -98,7 +101,7 @@ class FAQRepository:
             keys = self.client.smembers(category_set)
             if not keys:
                 return True
-                
+
             pipe = self.client.pipeline()
             for key in keys:
                 # Fetch key details first to retrieve doc_id association for cleanup
@@ -116,7 +119,7 @@ class FAQRepository:
                         pass
                 # Delete individual FAQ key
                 pipe.delete(key)
-            
+
             # Delete category set key
             pipe.delete(category_set)
             pipe.execute()

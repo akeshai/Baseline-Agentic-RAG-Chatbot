@@ -47,36 +47,69 @@ class MilvusVectorStore(BaseVectorStore):
             if not self._client.has_collection(self.collection_name):
                 # Create schema definition with fields: id, version_id, chunk_index, content, embedding, chunk_metadata
                 from pymilvus import DataType
+
                 schema = self._client.create_schema(
                     auto_id=True,
                     enable_dynamic_field=True,
-                    description="ChatBot Vector Chunks"
+                    description="ChatBot Vector Chunks",
                 )
-                schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True, description="Primary ID")
-                schema.add_field(field_name="version_id", datatype=DataType.INT64, description="Document Version ID")
-                schema.add_field(field_name="chunk_index", datatype=DataType.INT64, description="Chunk Index")
-                schema.add_field(field_name="content", datatype=DataType.VARCHAR, max_length=65535, description="Chunk Content")
-                schema.add_field(field_name="embedding", datatype=DataType.FLOAT_VECTOR, dim=self.dimension, description="Vector Embedding")
-                schema.add_field(field_name="chunk_metadata", datatype=DataType.VARCHAR, max_length=65535, description="Chunk Metadata")
-                
+                schema.add_field(
+                    field_name="id",
+                    datatype=DataType.INT64,
+                    is_primary=True,
+                    description="Primary ID",
+                )
+                schema.add_field(
+                    field_name="version_id",
+                    datatype=DataType.INT64,
+                    description="Document Version ID",
+                )
+                schema.add_field(
+                    field_name="chunk_index",
+                    datatype=DataType.INT64,
+                    description="Chunk Index",
+                )
+                schema.add_field(
+                    field_name="content",
+                    datatype=DataType.VARCHAR,
+                    max_length=65535,
+                    description="Chunk Content",
+                )
+                schema.add_field(
+                    field_name="embedding",
+                    datatype=DataType.FLOAT_VECTOR,
+                    dim=self.dimension,
+                    description="Vector Embedding",
+                )
+                schema.add_field(
+                    field_name="chunk_metadata",
+                    datatype=DataType.VARCHAR,
+                    max_length=65535,
+                    description="Chunk Metadata",
+                )
+
                 index_params = self._client.prepare_index_params()
                 index_params.add_index(
                     field_name="embedding",
                     metric_type="COSINE",
                     index_type="AUTOINDEX",
                 )
-                
+
                 self._client.create_collection(
                     collection_name=self.collection_name,
                     schema=schema,
-                    index_params=index_params
+                    index_params=index_params,
                 )
-                logger.info("Successfully created Milvus collection '%s'", self.collection_name)
+                logger.info(
+                    "Successfully created Milvus collection '%s'", self.collection_name
+                )
             else:
                 # Always load collection to memory for search readiness
                 self._client.load_collection(self.collection_name)
         except Exception as e:
-            logger.error("Failed to setup Milvus collection '%s': %s", self.collection_name, e)
+            logger.error(
+                "Failed to setup Milvus collection '%s': %s", self.collection_name, e
+            )
 
     async def insert_chunks(
         self,
@@ -102,17 +135,23 @@ class MilvusVectorStore(BaseVectorStore):
         data = []
         for idx, chunk in enumerate(chunks):
             metadata_str = json.dumps(chunk.get("metadata") or {})
-            data.append({
-                "version_id": version_id,
-                "chunk_index": idx,
-                "content": chunk["content"],
-                "embedding": vectors[idx],
-                "chunk_metadata": metadata_str
-            })
+            data.append(
+                {
+                    "version_id": version_id,
+                    "chunk_index": idx,
+                    "content": chunk["content"],
+                    "embedding": vectors[idx],
+                    "chunk_metadata": metadata_str,
+                }
+            )
 
         try:
             self.client.insert(collection_name=self.collection_name, data=data)
-            logger.info("Inserted %d chunks into Milvus collection '%s'", len(chunks), self.collection_name)
+            logger.info(
+                "Inserted %d chunks into Milvus collection '%s'",
+                len(chunks),
+                self.collection_name,
+            )
         except Exception as e:
             logger.error("Failed to insert chunks into Milvus: %s", e)
             raise e
@@ -126,7 +165,7 @@ class MilvusVectorStore(BaseVectorStore):
         Evicts all chunks associated with any version of a document.
         """
         # Resolve version IDs for this document
-        from sqlalchemy.ext.asyncio import AsyncSession
+
         close_session = False
         if db_session is None:
             db_session = SessionLocal()
@@ -143,9 +182,13 @@ class MilvusVectorStore(BaseVectorStore):
                 # Delete from Milvus
                 expr = f"version_id in [{','.join(map(str, version_ids))}]"
                 self.client.delete(collection_name=self.collection_name, filter=expr)
-                logger.info("Deleted Milvus chunks matching version IDs: %s", version_ids)
+                logger.info(
+                    "Deleted Milvus chunks matching version IDs: %s", version_ids
+                )
         except Exception as e:
-            logger.error("Failed to delete Milvus chunks for document %d: %s", document_id, e)
+            logger.error(
+                "Failed to delete Milvus chunks for document %d: %s", document_id, e
+            )
             raise e
         finally:
             if close_session:
@@ -182,8 +225,13 @@ class MilvusVectorStore(BaseVectorStore):
                     data=[query_vector],
                     limit=limit,
                     filter=filter_expr,
-                    output_fields=["version_id", "chunk_index", "content", "chunk_metadata"],
-                    metric_type="COSINE"
+                    output_fields=[
+                        "version_id",
+                        "chunk_index",
+                        "content",
+                        "chunk_metadata",
+                    ],
+                    metric_type="COSINE",
                 )
             except Exception as e:
                 logger.error("Milvus search query failed: %s", e)
@@ -200,9 +248,11 @@ class MilvusVectorStore(BaseVectorStore):
                 select(
                     DocumentVersion.id,
                     IngestedDocument.title,
-                    IngestedDocument.source_identifier
+                    IngestedDocument.source_identifier,
                 )
-                .join(IngestedDocument, DocumentVersion.document_id == IngestedDocument.id)
+                .join(
+                    IngestedDocument, DocumentVersion.document_id == IngestedDocument.id
+                )
                 .where(DocumentVersion.id.in_(version_ids))
             )
             db_res = await db_session.execute(doc_stmt)
@@ -216,20 +266,24 @@ class MilvusVectorStore(BaseVectorStore):
             for hit in hits:
                 entity = hit["entity"]
                 vid = entity["version_id"]
-                doc_info = doc_map.get(vid, {"title": "Unknown", "source_identifier": ""})
-                
+                doc_info = doc_map.get(
+                    vid, {"title": "Unknown", "source_identifier": ""}
+                )
+
                 try:
                     meta = json.loads(entity["chunk_metadata"])
                 except Exception:
                     meta = {}
 
                 # Calculate standard cosine similarity score
-                results.append({
-                    "id": hit.get("id"),
-                    "content": entity["content"],
-                    "score": float(hit["distance"]),  # Cosine distance/similarity
-                    "title": doc_info["title"],
-                    "source": doc_info["source_identifier"],
-                    "metadata": meta
-                })
+                results.append(
+                    {
+                        "id": hit.get("id"),
+                        "content": entity["content"],
+                        "score": float(hit["distance"]),  # Cosine distance/similarity
+                        "title": doc_info["title"],
+                        "source": doc_info["source_identifier"],
+                        "metadata": meta,
+                    }
+                )
             return results

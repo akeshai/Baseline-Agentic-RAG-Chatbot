@@ -67,9 +67,9 @@ async def test_faq_routes_complete_flow(client):
             "source_identifier": url_a,
             "title": "Gold Loan FAQ Page",
             "text_content": "Q: What is the Gold Loan rate?\nA: The Gold Loan interest rate starts from 9.5% p.a.",
-            "is_html": False
+            "is_html": False,
         },
-        headers=headers
+        headers=headers,
     )
     assert ingest_resp_a.status_code == 201
 
@@ -81,9 +81,9 @@ async def test_faq_routes_complete_flow(client):
             "source_identifier": url_b,
             "title": "FD Interest FAQ Page",
             "text_content": "Q: What is the FD rate?\nA: The FD interest rate is 7.25% p.a. for standard tenures.",
-            "is_html": False
+            "is_html": False,
         },
-        headers=headers
+        headers=headers,
     )
     assert ingest_resp_b.status_code == 201
 
@@ -91,28 +91,27 @@ async def test_faq_routes_complete_flow(client):
     search_resp = client.get(
         "/faq/search",
         params={"question": "What is the Gold Loan rate?"},
-        headers=headers
+        headers=headers,
     )
     assert search_resp.status_code == 200
     search_data = search_resp.json()
     assert search_data["success"] is True
     assert search_data["faq"]["question"] == "What is the Gold Loan rate?"
-    assert search_data["faq"]["answer"] == "The Gold Loan interest rate starts from 9.5% p.a."
+    assert (
+        search_data["faq"]["answer"]
+        == "The Gold Loan interest rate starts from 9.5% p.a."
+    )
     assert search_data["faq"]["category"] == "gold_loan"
 
     # Search with empty query -> 400 Bad Request
     search_empty_resp = client.get(
-        "/faq/search",
-        params={"question": "  "},
-        headers=headers
+        "/faq/search", params={"question": "  "}, headers=headers
     )
     assert search_empty_resp.status_code == 400
 
     # Search non-existing question -> 404 Not Found
     search_missing_resp = client.get(
-        "/faq/search",
-        params={"question": "How do I buy a car?"},
-        headers=headers
+        "/faq/search", params={"question": "How do I buy a car?"}, headers=headers
     )
     assert search_missing_resp.status_code == 404
 
@@ -122,11 +121,17 @@ async def test_faq_routes_complete_flow(client):
     summary_data = cat_summary_resp.json()
     assert summary_data["success"] is True
     assert summary_data["total_categories"] > 0
-    
+
     # Locate gold_loan and fixed_deposit_interest_rate summaries
-    gold_loan_meta = next(c for c in summary_data["categories"] if c["id"] == "gold_loan")
-    fd_meta = next(c for c in summary_data["categories"] if c["id"] == "fixed_deposit_interest_rate")
-    
+    gold_loan_meta = next(
+        c for c in summary_data["categories"] if c["id"] == "gold_loan"
+    )
+    fd_meta = next(
+        c
+        for c in summary_data["categories"]
+        if c["id"] == "fixed_deposit_interest_rate"
+    )
+
     assert gold_loan_meta["count"] == 1
     assert fd_meta["count"] == 1
 
@@ -135,7 +140,7 @@ async def test_faq_routes_complete_flow(client):
     list_q_resp = client.get(
         "/faq/categories/gold_loan/questions",
         params={"include_full_data": False},
-        headers=headers
+        headers=headers,
     )
     assert list_q_resp.status_code == 200
     list_q_data = list_q_resp.json()
@@ -147,14 +152,17 @@ async def test_faq_routes_complete_flow(client):
     list_full_resp = client.get(
         "/faq/categories/gold_loan/questions",
         params={"include_full_data": True},
-        headers=headers
+        headers=headers,
     )
     assert list_full_resp.status_code == 200
     list_full_data = list_full_resp.json()
     assert list_full_data["success"] is True
     assert list_full_data["count"] == 1
     assert list_full_data["questions"][0]["question"] == "What is the Gold Loan rate?"
-    assert list_full_data["questions"][0]["answer"] == "The Gold Loan interest rate starts from 9.5% p.a."
+    assert (
+        list_full_data["questions"][0]["answer"]
+        == "The Gold Loan interest rate starts from 9.5% p.a."
+    )
 
     # 6. Test DELETE /faq/categories/{category} (Category eviction)
     del_resp = client.delete("/faq/categories/gold_loan", headers=headers)
@@ -165,21 +173,21 @@ async def test_faq_routes_complete_flow(client):
     search_deleted_resp = client.get(
         "/faq/search",
         params={"question": "What is the Gold Loan rate?"},
-        headers=headers
+        headers=headers,
     )
     assert search_deleted_resp.status_code == 404
 
     # Assert category counts reflect the deletion
     cat_summary_post_resp = client.get("/faq/categories", headers=headers)
     assert cat_summary_post_resp.status_code == 200
-    gold_loan_meta_post = next(c for c in cat_summary_post_resp.json()["categories"] if c["id"] == "gold_loan")
+    gold_loan_meta_post = next(
+        c for c in cat_summary_post_resp.json()["categories"] if c["id"] == "gold_loan"
+    )
     assert gold_loan_meta_post["count"] == 0
 
     # 8. Assert that Document B (FD Category) remains active and untouched
     search_fd_resp = client.get(
-        "/faq/search",
-        params={"question": "What is the FD rate?"},
-        headers=headers
+        "/faq/search", params={"question": "What is the FD rate?"}, headers=headers
     )
     assert search_fd_resp.status_code == 200
     assert search_fd_resp.json()["faq"]["question"] == "What is the FD rate?"

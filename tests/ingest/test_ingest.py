@@ -204,7 +204,9 @@ def test_faq_extraction():
     A: Yes, min 18 years.
     """
     # Test standard text FAQ extraction with url categorization matching "others"
-    faqs = service._extract_faqs_from_text(text, url="https://www.dcb.bank.in/customer-support")
+    faqs = service._extract_faqs_from_text(
+        text, url="https://www.dcb.bank.in/customer-support"
+    )
     assert len(faqs) == 2
     assert faqs[0]["question"] == "How do I apply?"
     assert faqs[0]["answer"] == "Simply click on the apply now button."
@@ -220,10 +222,15 @@ def test_faq_extraction():
         <p><strong>Answer:</strong> Our interest rates start from 9.5% p.a. on gold ornaments.</p>
     </div>
     """
-    html_faqs = service._extract_faqs_from_text(html_text, url="https://www.dcb.bank.in/loans/gold-loan")
+    html_faqs = service._extract_faqs_from_text(
+        html_text, url="https://www.dcb.bank.in/loans/gold-loan"
+    )
     assert len(html_faqs) == 1
     assert html_faqs[0]["question"] == "What are gold loan interest rates?"
-    assert html_faqs[0]["answer"] == "Our interest rates start from 9.5% p.a. on gold ornaments."
+    assert (
+        html_faqs[0]["answer"]
+        == "Our interest rates start from 9.5% p.a. on gold ornaments."
+    )
     assert html_faqs[0]["category"] == "gold_loan"
 
     # Test Accordion HTML parser logic
@@ -239,9 +246,14 @@ def test_faq_extraction():
         </div>
     </section>
     """
-    accordion_faqs = service._extract_faqs_from_text(accordion_html, url="https://www.dcb.bank.in/fd-rates")
+    accordion_faqs = service._extract_faqs_from_text(
+        accordion_html, url="https://www.dcb.bank.in/fd-rates"
+    )
     assert len(accordion_faqs) == 1
-    assert accordion_faqs[0]["question"] == "What is the tenure for booking a fixed deposit?"
+    assert (
+        accordion_faqs[0]["question"]
+        == "What is the tenure for booking a fixed deposit?"
+    )
     assert "7 days to 120 months" in accordion_faqs[0]["answer"]
     assert accordion_faqs[0]["category"] == "fixed_deposit_interest_rate"
 

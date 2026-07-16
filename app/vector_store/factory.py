@@ -9,5 +9,6 @@ def get_vector_store() -> BaseVectorStore:
     """
     if db_settings.vector_store_type == "milvus":
         from app.vector_store.milvus import MilvusVectorStore
+
         return MilvusVectorStore()
     return PGVectorStore()

@@ -25,15 +25,14 @@ async def search_faq(
     """
     if not question.strip():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Question cannot be empty"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Question cannot be empty"
         )
-    
+
     faq = await repo.get_faq_by_question(question)
     if not faq:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No FAQ found for: {question}"
+            detail=f"No FAQ found for: {question}",
         )
     return {"success": True, "faq": faq}
 
@@ -54,25 +53,26 @@ async def get_all_categories(
         categories_list = []
         for cat in categories_config:
             cat_id = cat["id"]
-            categories_list.append({
-                "id": cat_id,
-                "description": cat.get("description", "").strip(),
-                "count": summary.get(cat_id, 0)
-            })
-            
+            categories_list.append(
+                {
+                    "id": cat_id,
+                    "description": cat.get("description", "").strip(),
+                    "count": summary.get(cat_id, 0),
+                }
+            )
+
         total_faqs = sum(summary.values())
         return {
             "success": True,
             "categories": categories_list,
             "total_categories": len(categories_list),
             "total_faqs": total_faqs,
-            "message": f"Found {len(categories_list)} categories with {total_faqs} FAQs"
+            "message": f"Found {len(categories_list)} categories with {total_faqs} FAQs",
         }
     except Exception as e:
         logger.error("Failed to retrieve categories: %s", e)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -90,37 +90,36 @@ async def get_category_questions(
     """
     if not category.strip():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Category cannot be empty"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Category cannot be empty"
         )
-        
+
     # Check if category is valid in configurations
     valid_categories = [cat["id"] for cat in categories_config]
     if category not in valid_categories:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Category '{category}' is not configured"
+            detail=f"Category '{category}' is not configured",
         )
-        
+
     faqs = await repo.get_questions_by_category(category)
     if not faqs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No FAQs found in category: {category}"
+            detail=f"No FAQs found in category: {category}",
         )
-        
+
     if include_full_data:
         questions_data = faqs
     else:
         # Only return the list of question texts
         questions_data = [faq["question"] for faq in faqs]
-        
+
     return {
         "success": True,
         "category": category,
         "count": len(faqs),
         "include_full_data": include_full_data,
-        "questions": questions_data
+        "questions": questions_data,
     }
 
 
@@ -137,27 +136,26 @@ async def delete_category(
     """
     if not category.strip():
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Category cannot be empty"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Category cannot be empty"
         )
-        
+
     # Check if category is valid in configurations
     valid_categories = [cat["id"] for cat in categories_config]
     if category not in valid_categories:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Category '{category}' is not configured"
+            detail=f"Category '{category}' is not configured",
         )
-        
+
     success = await repo.delete_faqs_by_category(category)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete category: {category}"
+            detail=f"Failed to delete category: {category}",
         )
-        
+
     return {
         "success": True,
         "category": category,
-        "message": f"All FAQs in category '{category}' have been deleted"
+        "message": f"All FAQs in category '{category}' have been deleted",
     }

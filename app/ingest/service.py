@@ -50,10 +50,10 @@ class FAQCache:
     def _cache_faqs_sync(self, doc_id: int, faqs: List[Dict[str, str]]) -> None:
         doc_key = f"doc:{doc_id}:faqs"
         doc_keys_set = f"doc:{doc_id}:faq_keys"
-        
+
         # Evict old ones first to prevent dead keys
         self._evict_faqs_sync(doc_id)
-        
+
         pipe = self.client.pipeline()
         for faq in faqs:
             q = faq.get("question", "").strip()
@@ -61,29 +61,24 @@ class FAQCache:
             cat = faq.get("category", "others").strip()
             if not q or not a:
                 continue
-            
-            slug = re.sub(r'[^a-z0-9]+', '_', q.lower()).strip('_')
+
+            slug = re.sub(r"[^a-z0-9]+", "_", q.lower()).strip("_")
             faq_key = f"faq:{slug}"
-            
+
             # Save individual FAQ JSON
-            faq_data = {
-                "question": q,
-                "answer": a,
-                "category": cat,
-                "doc_id": doc_id
-            }
+            faq_data = {"question": q, "answer": a, "category": cat, "doc_id": doc_id}
             pipe.set(faq_key, json.dumps(faq_data))
-            
+
             # Index under category set
             category_set = f"category:{cat}:faq_keys"
             pipe.sadd(category_set, faq_key)
-            
+
             # Index under doc keys set
             pipe.sadd(doc_keys_set, faq_key)
-            
+
             # Fallback legacy list
             pipe.rpush(doc_key, json.dumps(faq_data))
-            
+
         pipe.execute()
 
     async def evict_faqs(self, doc_id: int) -> None:
@@ -96,10 +91,10 @@ class FAQCache:
     def _evict_faqs_sync(self, doc_id: int) -> None:
         doc_key = f"doc:{doc_id}:faqs"
         doc_keys_set = f"doc:{doc_id}:faq_keys"
-        
+
         # Retrieve all individual FAQ keys matching this doc
         faq_keys = self.client.smembers(doc_keys_set)
-        
+
         if faq_keys:
             pipe = self.client.pipeline()
             # For each key, get it to clean up the category set it belongs to
@@ -114,7 +109,7 @@ class FAQCache:
                         pass
                 pipe.delete(key)
             pipe.execute()
-            
+
         self.client.delete(doc_key)
         self.client.delete(doc_keys_set)
 
@@ -148,7 +143,7 @@ class IngestionService:
             mapping[cat_id] = cat_id
             mapping[cat_id.replace("_", "-")] = cat_id
             mapping[cat_id.replace("_", " ")] = cat_id
-            
+
             # Map category name and variants
             name = cat.get("name", "").lower()
             if name:
@@ -176,12 +171,13 @@ class IngestionService:
                     mapping[kw_lower[:-1]] = cat_id
                 else:
                     mapping[kw_lower + "s"] = cat_id
-                    
+
         return mapping
 
     def extract_tags_from_url(self, url: str) -> List[str]:
         """Generate tags from all URL path segments."""
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
         path = parsed.path.strip("/")
         if not path:
@@ -202,13 +198,13 @@ class IngestionService:
         2. Content-based keyword density scoring (from primary and secondary keywords).
         """
         scores = {cat["id"]: 0 for cat in self.categories}
-        
+
         # 1. Score based on URL path tags
         for tag in tags:
             matched_cat = self.tag_to_category.get(tag)
             if matched_cat and matched_cat in scores:
                 scores[matched_cat] += 10  # High weight for URL segment match
-                
+
         # 2. Score based on content keywords
         text = (question + " " + answer).lower()
         for cat in self.categories:
@@ -218,12 +214,12 @@ class IngestionService:
             for kw in keywords.get("primary", []):
                 if kw.lower() in text:
                     scores[cat_id] += 2
-                    
+
             # Check secondary keywords (weight 1)
             for kw in keywords.get("secondary", []):
                 if kw.lower() in text:
                     scores[cat_id] += 1
-                    
+
         # 3. Select category with highest score
         max_score = 0
         best_category = "others"
@@ -231,7 +227,7 @@ class IngestionService:
             if score > max_score:
                 max_score = score
                 best_category = cat_id
-                
+
         return best_category
 
     async def get_metadata(
@@ -543,6 +539,7 @@ class IngestionService:
             try:
                 from bs4 import BeautifulSoup
                 import html2text
+
                 soup = BeautifulSoup(text, "html.parser")
                 faq_container = soup.find(id="product-faqs")
                 accordion_items = []
@@ -572,22 +569,29 @@ class IngestionService:
                         question_text = button.get_text(strip=True)
 
                         panel = item.find(
-                            "div", attrs={"data-accordion-component": "AccordionItemPanel"}
+                            "div",
+                            attrs={"data-accordion-component": "AccordionItemPanel"},
                         )
                         if not panel:
                             continue
-                        
+
                         # Extract panel content HTML and convert to clean markdown
-                        answer_html = "".join([str(child) for child in panel.contents]).strip()
+                        answer_html = "".join(
+                            [str(child) for child in panel.contents]
+                        ).strip()
                         answer_markdown = html_converter.handle(answer_html).strip()
 
                         # Categorize the FAQ
-                        category = self.categorize_faq(tags, question_text, answer_markdown)
-                        faqs.append({
-                            "question": question_text,
-                            "answer": answer_markdown,
-                            "category": category
-                        })
+                        category = self.categorize_faq(
+                            tags, question_text, answer_markdown
+                        )
+                        faqs.append(
+                            {
+                                "question": question_text,
+                                "answer": answer_markdown,
+                                "category": category,
+                            }
+                        )
                     if faqs:
                         return faqs
             except Exception as e:
@@ -597,6 +601,7 @@ class IngestionService:
         if "<" in text and ">" in text:
             try:
                 from bs4 import BeautifulSoup
+
                 soup = BeautifulSoup(text, "html.parser")
                 # Decompose non-content tags
                 for tag in soup(["script", "style", "head", "title", "meta"]):
@@ -618,9 +623,7 @@ class IngestionService:
             a_clean = re.sub(r"\s+", " ", a).strip()
             if q_clean and a_clean:
                 category = self.categorize_faq(tags, q_clean, a_clean)
-                faqs.append({
-                    "question": q_clean,
-                    "answer": a_clean,
-                    "category": category
-                })
+                faqs.append(
+                    {"question": q_clean, "answer": a_clean, "category": category}
+                )
         return faqs
