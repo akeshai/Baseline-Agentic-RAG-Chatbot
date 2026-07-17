@@ -6,7 +6,6 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.crawl.models import CrawledPage, CrawlTask
 
 
-
 def map_task(doc: dict) -> CrawlTask:
     doc_copy = dict(doc)
     doc_copy["id"] = str(doc_copy["_id"])
