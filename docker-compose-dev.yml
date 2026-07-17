@@ -1,28 +1,32 @@
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: chatbot_db
+  mongo:
+    image: mongo:7.0
+    container_name: chatbot_mongo
     restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: ${DB_NAME:-chatbot}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "27017:27017"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mongodata:/data/db
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-chatbot}" ]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  cloudbeaver:
-    image: dbeaver/cloudbeaver:latest
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.11
+    container_name: chatbot_etcd
+    restart: always
+    environment:
+      - ETCD_NAME=etcd
+      - ETCD_AUTO_COMPACTION_RETENTION=1
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER=etcd=http://etcd:2380
     ports:
-      - "8978:8978"
-    volumes:
-      - cloudbeaver:/opt/cloudbeaver/workspace
+      - "2379:2379"
 
   minio:
     image: minio/minio:latest
@@ -38,18 +42,35 @@ services:
       - minio_data:/data
     command: server /data --console-address ":9001"
     healthcheck:
-      test: [ "CMD", "mc", "ready", "local" ]
+      test: ["CMD", "mc", "ready", "local"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  milvus:
+    image: milvusdb/milvus:v2.5.4
+    container_name: chatbot_milvus
+    restart: always
+    ports:
+      - "19530:19530"
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    command: ["milvus", "run", "standalone"]
+    depends_on:
+      etcd:
+        condition: service_started
+      minio:
+        condition: service_healthy
+
   redis:
     image: redis:alpine
+    container_name: chatbot_redis
     ports:
       - "6379:6379"
     restart: always
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -57,7 +78,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: services/knowledge/Dockerfile
     container_name: chatbot_app
     restart: always
     ports:
@@ -65,26 +86,24 @@ services:
     env_file:
       - .env
     environment:
-      - DB_TYPE=postgresql
-      - DB_HOST=db
-      - DB_PORT=5432
-      - MINIO_ENDPOINT=minio:9000
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_URL=${REDIS_URL_DOCKER}
+      - MONGO_URI=${MONGO_URI_DOCKER}
+      - MONGO_DB=${MONGO_DB}
+      - MILVUS_URI=${MILVUS_URI_DOCKER}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT_DOCKER}
       - OBJECT_STORAGE_ROOT=/workspace/storage_buckets
     depends_on:
-      db:
+      mongo:
         condition: service_healthy
+      milvus:
+        condition: service_started
       minio:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      # - ./app:/workspace/app
-      # - ./main.py:/workspace/main.py
       - ./storage_buckets:/workspace/storage_buckets
 
 volumes:
-  cloudbeaver:
-  pgdata:
+  mongodata:
   minio_data:
-

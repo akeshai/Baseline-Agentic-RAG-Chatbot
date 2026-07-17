@@ -47,3 +47,6 @@ pythonpath = [
 markers = [
   "real_oci: mark test as executing real OCI API calls"
 ]
+
+[tool.uv.workspace]
+members = ["services/*", "libs/*"]
